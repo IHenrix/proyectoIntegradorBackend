@@ -59,7 +59,9 @@ public class VueloServiceImpl implements VueloService {
                 String duracion = formatearDuracion(vuelo.getDuracionMin());
                 String semaforo = calcularSemaforo(vuelo.getId(), tarifa.getTipo(),
                         tarifa.getPrecio().doubleValue(), treintaDiasAtras);
-                String aerolinea = nombreCorto(vuelo.getAerolinea().getNombre());
+                String aerolinea    = nombreCorto(vuelo.getAerolinea().getNombre());
+                String urlAerolinea = vuelo.getAerolinea().getUrlWeb() != null
+                        ? vuelo.getAerolinea().getUrlWeb() : "#";
 
                 resultado.add(new VueloDTO(
                         tarifa.getId().longValue(),
@@ -77,7 +79,8 @@ public class VueloServiceImpl implements VueloService {
                         tarifa.getEquipajeManoKg(),
                         tarifa.getPermiteReembolso(),
                         tarifa.getAsientoSeleccionable(),
-                        semaforo
+                        semaforo,
+                        urlAerolinea
                 ));
             }
         }

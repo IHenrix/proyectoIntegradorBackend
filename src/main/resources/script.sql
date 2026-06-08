@@ -10,6 +10,7 @@ DROP TABLE IF EXISTS busqueda         CASCADE;
 DROP TABLE IF EXISTS historial_precio CASCADE;
 DROP TABLE IF EXISTS tarifa           CASCADE;
 DROP TABLE IF EXISTS vuelo            CASCADE;
+DROP TABLE IF EXISTS aeropuerto       CASCADE;
 DROP TABLE IF EXISTS aerolinea        CASCADE;
 DROP TABLE IF EXISTS suscripcion      CASCADE;
 DROP TABLE IF EXISTS sesion           CASCADE;
@@ -100,14 +101,22 @@ CREATE TABLE aerolinea (
   id_aerolinea INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   nombre       VARCHAR(100) NOT NULL,
   codigo       CHAR(2) NOT NULL UNIQUE,
-  logo_url     VARCHAR(255)
+  logo_url     VARCHAR(255),
+  url_web      VARCHAR(255)
+);
+
+CREATE TABLE aeropuerto (
+  codigo  CHAR(3)      PRIMARY KEY,
+  nombre  VARCHAR(100) NOT NULL,
+  ciudad  VARCHAR(100) NOT NULL,
+  pais    CHAR(2)      NOT NULL DEFAULT 'PE'
 );
 
 CREATE TABLE vuelo (
   id_vuelo     INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   id_aerolinea INTEGER NOT NULL REFERENCES aerolinea(id_aerolinea),
-  origen       CHAR(3) NOT NULL,
-  destino      CHAR(3) NOT NULL,
+  origen       CHAR(3) NOT NULL REFERENCES aeropuerto(codigo),
+  destino      CHAR(3) NOT NULL REFERENCES aeropuerto(codigo),
   fecha_salida DATE NOT NULL,
   hora_salida  TIME NOT NULL,
   duracion_min SMALLINT NOT NULL CHECK (duracion_min > 0),
@@ -201,10 +210,21 @@ INSERT INTO plan (nombre, precio_mensual, duracion_dias, max_alertas, dias_predi
   ('Premium Mensual', 15.00,  30,  999, 15, 2),
   ('Premium Anual',   120.00, 365, 999, 15, 2);
 
-INSERT INTO aerolinea (nombre, codigo) VALUES
-  ('LATAM Airlines Peru', 'LA'),
-  ('Sky Airline',         'H2'),
-  ('JetSmart',            'JA');
+INSERT INTO aerolinea (nombre, codigo, url_web) VALUES
+  ('LATAM Airlines Peru', 'LA', 'https://www.latam.com/es_pe/'),
+  ('Sky Airline',         'H2', 'https://www.skyairline.com/peru'),
+  ('JetSmart',            'JA', 'https://jetsmart.com/pe/es/');
+
+INSERT INTO aeropuerto (codigo, nombre, ciudad) VALUES
+  ('LIM', 'Jorge Chávez',                    'Lima'),
+  ('CUZ', 'Velasco Astete',                  'Cusco'),
+  ('AQP', 'Rodríguez Ballón',                'Arequipa'),
+  ('PIU', 'Guillermo Concha Ibérico',        'Piura'),
+  ('TRU', 'Carlos Martínez de Pinillos',     'Trujillo'),
+  ('IQT', 'Francisco Secada Vignetta',       'Iquitos'),
+  ('JUL', 'Inca Manco Cápac',               'Juliaca'),
+  ('TPP', 'Guillermo del Castillo Paredes',  'Tarapoto'),
+  ('TCQ', 'Coronel Carlos Ciriani Santa Rosa','Tacna');
 
 INSERT INTO persona (id_tipo_doc, nro_documento, nombre, apellido_paterno, apellido_materno, genero, telefono) VALUES
   (1, '74405646', 'PEDRO LUIS', 'YARLEQUE', 'LINARES', 'M', '+51999999999');
@@ -215,63 +235,210 @@ INSERT INTO usuario (id_persona, id_rol, email, password_hash, proveedor, activo
    'email', TRUE, TRUE);
    
 
-INSERT INTO vuelo (id_aerolinea, origen, destino, fecha_salida, hora_salida, duracion_min) VALUES
-  (1, 'LIM', 'CUZ', '2026-06-20', '06:00', 90),
-  (2, 'LIM', 'CUZ', '2026-06-20', '10:15', 90),
-  (3, 'LIM', 'CUZ', '2026-06-20', '15:30', 90),
-  (1, 'LIM', 'CUZ', '2026-06-20', '18:45', 90),
-  (1, 'LIM', 'AQP', '2026-06-20', '07:00', 75),
-  (2, 'LIM', 'AQP', '2026-06-20', '11:30', 75),
-  (3, 'LIM', 'AQP', '2026-06-20', '16:00', 75),
-  (1, 'LIM', 'PIU', '2026-06-20', '08:00', 75),
-  (2, 'LIM', 'PIU', '2026-06-20', '13:00', 75),
-  (3, 'LIM', 'PIU', '2026-06-20', '17:30', 75);
+-- ============================================================
+-- VUELOS + TARIFAS + HISTORIAL — 4 meses (2026-06-08 → 2026-10-08)
+-- 8 rutas domésticas Peru basadas en frecuencias reales de Kayak
+-- Rutas: CUZ, AQP, PIU, TRU, IQT, JUL, TPP, TCQ (ida+vuelta)
+-- Factor dinámico: fin de semana +14%, julio +18%, urgente +28%
+-- ~100 vuelos/día → ~12,300 vuelos, ~30,750 tarifas, ~86,100 historial
+-- ============================================================
+DO $$
+DECLARE
+  r        RECORD;
+  v_id     INTEGER;
+  v_factor NUMERIC(6,4);
+  v_bas    NUMERIC(8,2);
+  v_flex   NUMERIC(8,2);
+  v_prem   NUMERIC(8,2);
+  i        INTEGER;
+BEGIN
+  FOR r IN
+    SELECT
+      h.al_id       AS aerolinea_id,
+      h.orig,
+      h.dest,
+      h.ho::TIME    AS hora,
+      h.dur         AS duracion,
+      h.pb          AS precio_base,
+      f.fecha::DATE AS fecha
+    FROM (VALUES
+      -- ── LIM → CUZ (LATAM 4x, Sky 2x, JetSMART 2x / día) ────────
+      (1,'LIM','CUZ','06:00',90, 205.00),
+      (1,'LIM','CUZ','10:15',90, 205.00),
+      (1,'LIM','CUZ','15:30',90, 205.00),
+      (1,'LIM','CUZ','18:45',90, 205.00),
+      (2,'LIM','CUZ','08:30',90, 150.00),
+      (2,'LIM','CUZ','14:00',90, 150.00),
+      (3,'LIM','CUZ','07:15',90, 122.00),
+      (3,'LIM','CUZ','16:30',90, 122.00),
+      -- ── CUZ → LIM ───────────────────────────────────────────────
+      (1,'CUZ','LIM','07:00',90, 210.00),
+      (1,'CUZ','LIM','11:30',90, 210.00),
+      (1,'CUZ','LIM','16:45',90, 210.00),
+      (1,'CUZ','LIM','19:30',90, 210.00),
+      (2,'CUZ','LIM','09:15',90, 155.00),
+      (2,'CUZ','LIM','15:00',90, 155.00),
+      (3,'CUZ','LIM','08:00',90, 125.00),
+      (3,'CUZ','LIM','17:30',90, 125.00),
+      -- ── LIM → AQP (LATAM 3x, Sky 2x, JetSMART 2x / día) ────────
+      (1,'LIM','AQP','07:00',75, 175.00),
+      (1,'LIM','AQP','12:30',75, 175.00),
+      (1,'LIM','AQP','17:45',75, 175.00),
+      (2,'LIM','AQP','09:00',75, 135.00),
+      (2,'LIM','AQP','15:00',75, 135.00),
+      (3,'LIM','AQP','11:00',75, 107.00),
+      (3,'LIM','AQP','18:30',75, 107.00),
+      -- ── AQP → LIM ───────────────────────────────────────────────
+      (1,'AQP','LIM','08:15',75, 179.00),
+      (1,'AQP','LIM','13:45',75, 179.00),
+      (1,'AQP','LIM','19:00',75, 179.00),
+      (2,'AQP','LIM','10:00',75, 139.00),
+      (2,'AQP','LIM','16:15',75, 139.00),
+      (3,'AQP','LIM','12:00',75, 110.00),
+      (3,'AQP','LIM','19:30',75, 110.00),
+      -- ── LIM → PIU (LATAM 3x, Sky 2x, JetSMART 2x / día) ────────
+      (1,'LIM','PIU','08:00',75, 165.00),
+      (1,'LIM','PIU','13:00',75, 165.00),
+      (1,'LIM','PIU','18:00',75, 165.00),
+      (2,'LIM','PIU','10:30',75, 128.00),
+      (2,'LIM','PIU','16:30',75, 128.00),
+      (3,'LIM','PIU','09:15',75,  97.00),
+      (3,'LIM','PIU','17:00',75,  97.00),
+      -- ── PIU → LIM ───────────────────────────────────────────────
+      (1,'PIU','LIM','09:00',75, 168.00),
+      (1,'PIU','LIM','14:30',75, 168.00),
+      (1,'PIU','LIM','19:15',75, 168.00),
+      (2,'PIU','LIM','11:15',75, 130.00),
+      (2,'PIU','LIM','17:30',75, 130.00),
+      (3,'PIU','LIM','10:00',75,  99.00),
+      (3,'PIU','LIM','18:00',75,  99.00),
+      -- ── LIM → TRU Trujillo (LATAM 4x, Sky 2x / día) ─ ruta corta
+      (1,'LIM','TRU','06:30',55, 155.00),
+      (1,'LIM','TRU','09:45',55, 155.00),
+      (1,'LIM','TRU','14:00',55, 155.00),
+      (1,'LIM','TRU','18:30',55, 155.00),
+      (2,'LIM','TRU','08:00',55, 122.00),
+      (2,'LIM','TRU','15:30',55, 122.00),
+      -- ── TRU → LIM ───────────────────────────────────────────────
+      (1,'TRU','LIM','08:00',55, 158.00),
+      (1,'TRU','LIM','11:15',55, 158.00),
+      (1,'TRU','LIM','15:30',55, 158.00),
+      (1,'TRU','LIM','20:00',55, 158.00),
+      (2,'TRU','LIM','09:30',55, 125.00),
+      (2,'TRU','LIM','17:00',55, 125.00),
+      -- ── LIM → IQT Iquitos (LATAM 3x, Sky 2x / día) ─ ruta amazónica
+      (1,'LIM','IQT','07:30',90, 235.00),
+      (1,'LIM','IQT','12:00',90, 235.00),
+      (1,'LIM','IQT','17:00',90, 235.00),
+      (2,'LIM','IQT','09:30',90, 185.00),
+      (2,'LIM','IQT','14:30',90, 185.00),
+      -- ── IQT → LIM ───────────────────────────────────────────────
+      (1,'IQT','LIM','10:00',90, 240.00),
+      (1,'IQT','LIM','14:30',90, 240.00),
+      (1,'IQT','LIM','19:30',90, 240.00),
+      (2,'IQT','LIM','12:00',90, 189.00),
+      (2,'IQT','LIM','17:00',90, 189.00),
+      -- ── LIM → JUL Juliaca/Puno (LATAM 3x, Sky 2x / día) ────────
+      (1,'LIM','JUL','07:00',80, 189.00),
+      (1,'LIM','JUL','11:30',80, 189.00),
+      (1,'LIM','JUL','17:00',80, 189.00),
+      (2,'LIM','JUL','09:00',80, 149.00),
+      (2,'LIM','JUL','15:00',80, 149.00),
+      -- ── JUL → LIM ───────────────────────────────────────────────
+      (1,'JUL','LIM','09:00',80, 192.00),
+      (1,'JUL','LIM','13:30',80, 192.00),
+      (1,'JUL','LIM','19:00',80, 192.00),
+      (2,'JUL','LIM','11:00',80, 152.00),
+      (2,'JUL','LIM','17:00',80, 152.00),
+      -- ── LIM → TPP Tarapoto (LATAM 3x, Sky 2x, JetSMART 2x / día)
+      (1,'LIM','TPP','07:45',70, 169.00),
+      (1,'LIM','TPP','12:15',70, 169.00),
+      (1,'LIM','TPP','17:30',70, 169.00),
+      (2,'LIM','TPP','09:15',70, 132.00),
+      (2,'LIM','TPP','15:45',70, 132.00),
+      (3,'LIM','TPP','11:00',70, 109.00),
+      (3,'LIM','TPP','18:00',70, 109.00),
+      -- ── TPP → LIM ───────────────────────────────────────────────
+      (1,'TPP','LIM','10:00',70, 172.00),
+      (1,'TPP','LIM','14:30',70, 172.00),
+      (1,'TPP','LIM','19:45',70, 172.00),
+      (2,'TPP','LIM','11:30',70, 135.00),
+      (2,'TPP','LIM','18:00',70, 135.00),
+      (3,'TPP','LIM','13:15',70, 112.00),
+      (3,'TPP','LIM','20:15',70, 112.00),
+      -- ── LIM → TCQ Tacna (LATAM 2x, Sky 2x / día) ─ ruta sur ────
+      (1,'LIM','TCQ','07:00',120, 219.00),
+      (1,'LIM','TCQ','14:30',120, 219.00),
+      (2,'LIM','TCQ','09:30',120, 175.00),
+      (2,'LIM','TCQ','17:00',120, 175.00),
+      -- ── TCQ → LIM ───────────────────────────────────────────────
+      (1,'TCQ','LIM','10:00',120, 222.00),
+      (1,'TCQ','LIM','17:30',120, 222.00),
+      (2,'TCQ','LIM','12:30',120, 178.00),
+      (2,'TCQ','LIM','20:00',120, 178.00)
+    ) AS h(al_id, orig, dest, ho, dur, pb)
+    CROSS JOIN generate_series(
+      '2026-06-08'::date,
+      '2026-10-08'::date,
+      '1 day'::interval
+    ) AS f(fecha)
+  LOOP
+    -- Factor de precio dinámico basado en demanda real
+    v_factor := 1.0
+      + CASE WHEN EXTRACT(DOW FROM r.fecha) IN (5,6,0) THEN 0.14 ELSE 0 END
+      + CASE WHEN EXTRACT(MONTH FROM r.fecha) = 7       THEN 0.18 ELSE 0 END
+      + CASE WHEN (r.fecha - CURRENT_DATE) < 7  THEN  0.28
+             WHEN (r.fecha - CURRENT_DATE) > 45 THEN -0.10
+             WHEN (r.fecha - CURRENT_DATE) > 30 THEN -0.05
+             ELSE 0
+        END;
 
-INSERT INTO tarifa (id_vuelo, tipo, precio, equipaje_bodega_kg, equipaje_mano_kg, costo_cambio_fecha, permite_reembolso, asiento_seleccionable) VALUES
-  (1,  'basica',   189.00,  0, 10,  80.00, FALSE, FALSE),
-  (1,  'flex',     245.00, 23, 10,   0.00, TRUE,  TRUE),
-  (2,  'basica',   145.00,  0, 10,  60.00, FALSE, FALSE),
-  (2,  'flex',     195.00, 20, 10,   0.00, TRUE,  TRUE),
-  (3,  'basica',   119.00,  0,  8,  70.00, FALSE, FALSE),
-  (3,  'flex',     169.00, 20,  8,   0.00, FALSE, TRUE),
-  (4,  'basica',   215.00,  0, 10,  80.00, FALSE, FALSE),
-  (4,  'flex',     275.00, 23, 10,   0.00, TRUE,  TRUE),
-  (4,  'premium',  389.00, 32, 10,   0.00, TRUE,  TRUE),
-  (5,  'basica',   175.00,  0, 10,  80.00, FALSE, FALSE),
-  (5,  'flex',     229.00, 23, 10,   0.00, TRUE,  TRUE),
-  (6,  'basica',   135.00,  0, 10,  60.00, FALSE, FALSE),
-  (6,  'flex',     185.00, 20, 10,   0.00, TRUE,  TRUE),
-  (7,  'basica',   109.00,  0,  8,  70.00, FALSE, FALSE),
-  (7,  'flex',     155.00, 20,  8,   0.00, FALSE, TRUE),
-  (8,  'basica',   165.00,  0, 10,  80.00, FALSE, FALSE),
-  (8,  'flex',     219.00, 23, 10,   0.00, TRUE,  TRUE),
-  (9,  'basica',   128.00,  0, 10,  60.00, FALSE, FALSE),
-  (9,  'flex',     178.00, 20, 10,   0.00, TRUE,  TRUE),
-  (10, 'basica',    99.00,  0,  8,  70.00, FALSE, FALSE),
-  (10, 'flex',     145.00, 20,  8,   0.00, FALSE, TRUE);
+    v_bas  := ROUND(r.precio_base * v_factor,        2);
+    v_flex := ROUND(r.precio_base * v_factor * 1.35, 2);
+    v_prem := ROUND(r.precio_base * v_factor * 1.88, 2);
 
-INSERT INTO historial_precio (id_vuelo, precio, tipo_tarifa, fecha_captura) VALUES
-  (1, 220.00, 'basica', '2026-05-26 06:00:00'),
-  (1, 215.00, 'basica', '2026-05-27 06:00:00'),
-  (1, 210.00, 'basica', '2026-05-28 06:00:00'),
-  (1, 205.00, 'basica', '2026-05-29 06:00:00'),
-  (1, 198.00, 'basica', '2026-05-30 06:00:00'),
-  (1, 192.00, 'basica', '2026-05-31 06:00:00'),
-  (1, 189.00, 'basica', '2026-06-01 06:00:00'),
-  (2, 148.00, 'basica', '2026-05-26 10:00:00'),
-  (2, 146.00, 'basica', '2026-05-28 10:00:00'),
-  (2, 147.00, 'basica', '2026-05-30 10:00:00'),
-  (2, 145.00, 'basica', '2026-06-01 10:00:00'),
-  (3,  99.00, 'basica', '2026-05-26 15:00:00'),
-  (3, 105.00, 'basica', '2026-05-28 15:00:00'),
-  (3, 112.00, 'basica', '2026-05-30 15:00:00'),
-  (3, 119.00, 'basica', '2026-06-01 15:00:00'),
-  (5, 195.00, 'basica', '2026-05-26 07:00:00'),
-  (5, 182.00, 'basica', '2026-05-29 07:00:00'),
-  (5, 175.00, 'basica', '2026-06-01 07:00:00'),
-  (6, 132.00, 'basica', '2026-05-26 11:00:00'),
-  (6, 135.00, 'basica', '2026-05-29 11:00:00'),
-  (6, 135.00, 'basica', '2026-06-01 11:00:00'),
-  (8, 180.00, 'basica', '2026-05-26 08:00:00'),
-  (8, 170.00, 'basica', '2026-05-29 08:00:00'),
-  (8, 165.00, 'basica', '2026-06-01 08:00:00');
+    INSERT INTO vuelo (id_aerolinea, origen, destino, fecha_salida, hora_salida, duracion_min)
+    VALUES (r.aerolinea_id, r.orig, r.dest, r.fecha, r.hora, r.duracion)
+    RETURNING id_vuelo INTO v_id;
+
+    -- Tarifa básica — todas las aerolíneas
+    INSERT INTO tarifa (id_vuelo, tipo, precio,
+                        equipaje_bodega_kg, equipaje_mano_kg,
+                        costo_cambio_fecha, permite_reembolso, asiento_seleccionable)
+    VALUES (v_id, 'basica', v_bas,
+      0,
+      CASE r.aerolinea_id WHEN 3 THEN 8 ELSE 10 END,
+      CASE r.aerolinea_id WHEN 1 THEN 80.00 WHEN 2 THEN 60.00 ELSE 70.00 END,
+      FALSE, FALSE);
+
+    -- Tarifa flex — todas las aerolíneas
+    INSERT INTO tarifa (id_vuelo, tipo, precio,
+                        equipaje_bodega_kg, equipaje_mano_kg,
+                        costo_cambio_fecha, permite_reembolso, asiento_seleccionable)
+    VALUES (v_id, 'flex', v_flex,
+      CASE r.aerolinea_id WHEN 1 THEN 23 ELSE 20 END,
+      CASE r.aerolinea_id WHEN 3 THEN  8 ELSE 10 END,
+      0.00, TRUE, TRUE);
+
+    -- Tarifa premium — solo LATAM
+    IF r.aerolinea_id = 1 THEN
+      INSERT INTO tarifa (id_vuelo, tipo, precio,
+                          equipaje_bodega_kg, equipaje_mano_kg,
+                          costo_cambio_fecha, permite_reembolso, asiento_seleccionable)
+      VALUES (v_id, 'premium', v_prem, 32, 10, 0.00, TRUE, TRUE);
+    END IF;
+
+    -- Historial de precios: 7 capturas de los últimos 7 días
+    -- Simula el monitoreo diario que usaría el job de Amadeus
+    FOR i IN 1..7 LOOP
+      INSERT INTO historial_precio (id_vuelo, precio, tipo_tarifa, fecha_captura)
+      VALUES (
+        v_id,
+        ROUND((v_bas * (0.92 + random() * 0.18))::numeric, 2),
+        'basica',
+        NOW() - (i * INTERVAL '1 day') - (random() * INTERVAL '18 hours')
+      );
+    END LOOP;
+
+  END LOOP;
+END $$;

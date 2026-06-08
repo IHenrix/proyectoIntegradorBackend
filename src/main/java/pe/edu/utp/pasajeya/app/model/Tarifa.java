@@ -1,8 +1,10 @@
 package pe.edu.utp.pasajeya.app.model;
 
 import jakarta.persistence.*;
+import lombok.*;
 import java.math.BigDecimal;
 
+@Getter @Setter @NoArgsConstructor
 @Entity
 @Table(name = "tarifa")
 public class Tarifa {
@@ -16,7 +18,7 @@ public class Tarifa {
     @JoinColumn(name = "id_vuelo")
     private Vuelo vuelo;
 
-    private String tipo;
+    private String     tipo;
     private BigDecimal precio;
 
     @Column(name = "equipaje_bodega_kg")
@@ -33,23 +35,4 @@ public class Tarifa {
 
     @Column(name = "asiento_seleccionable")
     private Boolean asientoSeleccionable;
-
-    public Integer getId() { return id; }
-    public void setId(Integer id) { this.id = id; }
-    public Vuelo getVuelo() { return vuelo; }
-    public void setVuelo(Vuelo vuelo) { this.vuelo = vuelo; }
-    public String getTipo() { return tipo; }
-    public void setTipo(String tipo) { this.tipo = tipo; }
-    public BigDecimal getPrecio() { return precio; }
-    public void setPrecio(BigDecimal precio) { this.precio = precio; }
-    public Integer getEquipajeBodegaKg() { return equipajeBodegaKg; }
-    public void setEquipajeBodegaKg(Integer equipajeBodegaKg) { this.equipajeBodegaKg = equipajeBodegaKg; }
-    public Integer getEquipajeManoKg() { return equipajeManoKg; }
-    public void setEquipajeManoKg(Integer equipajeManoKg) { this.equipajeManoKg = equipajeManoKg; }
-    public BigDecimal getCostoCambioFecha() { return costoCambioFecha; }
-    public void setCostoCambioFecha(BigDecimal costoCambioFecha) { this.costoCambioFecha = costoCambioFecha; }
-    public Boolean getPermiteReembolso() { return permiteReembolso; }
-    public void setPermiteReembolso(Boolean permiteReembolso) { this.permiteReembolso = permiteReembolso; }
-    public Boolean getAsientoSeleccionable() { return asientoSeleccionable; }
-    public void setAsientoSeleccionable(Boolean asientoSeleccionable) { this.asientoSeleccionable = asientoSeleccionable; }
 }

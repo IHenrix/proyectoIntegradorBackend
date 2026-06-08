@@ -1,7 +1,9 @@
 package pe.edu.utp.pasajeya.app.model;
 
 import jakarta.persistence.*;
+import lombok.*;
 
+@Getter @Setter @NoArgsConstructor
 @Entity
 @Table(name = "aerolinea")
 public class Aerolinea {
@@ -17,12 +19,6 @@ public class Aerolinea {
     @Column(name = "logo_url")
     private String logoUrl;
 
-    public Integer getId() { return id; }
-    public void setId(Integer id) { this.id = id; }
-    public String getNombre() { return nombre; }
-    public void setNombre(String nombre) { this.nombre = nombre; }
-    public String getCodigo() { return codigo; }
-    public void setCodigo(String codigo) { this.codigo = codigo; }
-    public String getLogoUrl() { return logoUrl; }
-    public void setLogoUrl(String logoUrl) { this.logoUrl = logoUrl; }
+    @Column(name = "url_web")
+    private String urlWeb;
 }

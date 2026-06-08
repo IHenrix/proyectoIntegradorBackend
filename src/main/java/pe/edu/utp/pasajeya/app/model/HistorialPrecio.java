@@ -1,9 +1,11 @@
 package pe.edu.utp.pasajeya.app.model;
 
 import jakarta.persistence.*;
+import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+@Getter @Setter @NoArgsConstructor
 @Entity
 @Table(name = "historial_precio")
 public class HistorialPrecio {
@@ -24,15 +26,4 @@ public class HistorialPrecio {
 
     @Column(name = "fecha_captura")
     private LocalDateTime fechaCaptura;
-
-    public Integer getId() { return id; }
-    public void setId(Integer id) { this.id = id; }
-    public Vuelo getVuelo() { return vuelo; }
-    public void setVuelo(Vuelo vuelo) { this.vuelo = vuelo; }
-    public BigDecimal getPrecio() { return precio; }
-    public void setPrecio(BigDecimal precio) { this.precio = precio; }
-    public String getTipoTarifa() { return tipoTarifa; }
-    public void setTipoTarifa(String tipoTarifa) { this.tipoTarifa = tipoTarifa; }
-    public LocalDateTime getFechaCaptura() { return fechaCaptura; }
-    public void setFechaCaptura(LocalDateTime fechaCaptura) { this.fechaCaptura = fechaCaptura; }
 }

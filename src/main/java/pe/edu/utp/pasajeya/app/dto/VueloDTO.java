@@ -16,5 +16,6 @@ public record VueloDTO(
         Integer equipajeManoKg,
         Boolean permiteReembolso,
         Boolean asientoSeleccionable,
-        String  semaforo
+        String  semaforo,
+        String  urlAerolinea
 ) {}

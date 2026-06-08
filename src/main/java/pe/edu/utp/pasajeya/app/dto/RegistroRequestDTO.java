@@ -14,5 +14,6 @@ public record RegistroRequestDTO(
         String telefono,
         String fechaNacimiento,
         Integer tipoDocumentoId,
-        String nroDocumento
+        String nroDocumento,
+        String captchaToken
 ) {}

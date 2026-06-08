@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import pe.edu.utp.pasajeya.app.service.RecaptchaService;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -39,6 +40,7 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final EmailService emailService;
+    private final RecaptchaService recaptchaService;
 
     public AuthServiceImpl(UsuarioRepository usuarioRepo,
                            PersonaRepository personaRepo,
@@ -47,20 +49,26 @@ public class AuthServiceImpl implements AuthService {
                            TipoDocumentoRepository tipoDocRepo,
                            PasswordEncoder passwordEncoder,
                            JwtUtil jwtUtil,
-                           EmailService emailService) {
-        this.usuarioRepo     = usuarioRepo;
-        this.personaRepo     = personaRepo;
-        this.tokenRepo       = tokenRepo;
-        this.rolRepo         = rolRepo;
-        this.tipoDocRepo     = tipoDocRepo;
-        this.passwordEncoder = passwordEncoder;
-        this.jwtUtil         = jwtUtil;
-        this.emailService    = emailService;
+                           EmailService emailService,
+                           RecaptchaService recaptchaService) {
+        this.usuarioRepo      = usuarioRepo;
+        this.personaRepo      = personaRepo;
+        this.tokenRepo        = tokenRepo;
+        this.rolRepo          = rolRepo;
+        this.tipoDocRepo      = tipoDocRepo;
+        this.passwordEncoder  = passwordEncoder;
+        this.jwtUtil          = jwtUtil;
+        this.emailService     = emailService;
+        this.recaptchaService = recaptchaService;
     }
 
     @Override
     @Transactional
     public void registro(RegistroRequestDTO dto) {
+        if (!recaptchaService.verificar(dto.captchaToken())) {
+            throw new RuntimeException("Verificacion de captcha fallida. Intenta de nuevo.");
+        }
+
         Preconditions.checkArgument(StringUtils.isNotBlank(dto.email()), "El email no puede estar vacío");
         Preconditions.checkArgument(StringUtils.isNotBlank(dto.password()), "La contraseña no puede estar vacía");
         Preconditions.checkArgument(dto.password().length() >= 8, "La contraseña debe tener al menos 8 caracteres");
@@ -131,6 +139,10 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public LoginResponseDTO login(LoginRequestDTO dto) {
+        if (!recaptchaService.verificar(dto.captchaToken())) {
+            throw new RuntimeException("Verificacion de captcha fallida. Intenta de nuevo.");
+        }
+
         String emailNormalizado = StringUtils.lowerCase(StringUtils.trimToEmpty(dto.email()));
 
         Usuario usuario = usuarioRepo.findByEmail(emailNormalizado)
