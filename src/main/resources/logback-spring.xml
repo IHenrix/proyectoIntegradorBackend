@@ -19,7 +19,7 @@
     </appender>
 
     <!-- Nuestro código: DEBUG para ver todo el detalle -->
-    <logger name="com.pasajeya" level="DEBUG" additivity="false">
+    <logger name="pe.edu.utp.pasajeya" level="DEBUG" additivity="false">
         <appender-ref ref="CONSOLE"/>
     </logger>
 

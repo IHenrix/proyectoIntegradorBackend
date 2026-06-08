@@ -1,6 +1,5 @@
 package pe.edu.utp.pasajeya.app.controller;
 
-import pe.edu.utp.pasajeya.app.config.DatabaseConnection;
 import pe.edu.utp.pasajeya.app.dto.VueloDTO;
 import pe.edu.utp.pasajeya.app.service.VueloExcelService;
 import pe.edu.utp.pasajeya.app.service.VueloService;
@@ -36,8 +35,7 @@ public class VueloController {
             @RequestParam String fecha,
             @RequestParam(defaultValue = "1") int pasajeros) {
 
-        DatabaseConnection db = DatabaseConnection.getInstance();
-        log.info("Request recibido → {} a {} | fecha: {} | BD: {}", origen, destino, fecha, db.getNombreBD());
+        log.info("Request recibido → {} a {} | fecha: {}", origen, destino, fecha);
 
         List<VueloDTO> vuelos = vueloService.buscarVuelos(origen, destino, fecha, pasajeros);
         log.info("Respondiendo {} vuelos encontrados", vuelos.size());

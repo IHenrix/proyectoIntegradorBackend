@@ -240,7 +240,7 @@ INSERT INTO usuario (id_persona, id_rol, email, password_hash, proveedor, activo
 -- 8 rutas domésticas Peru basadas en frecuencias reales de Kayak
 -- Rutas: CUZ, AQP, PIU, TRU, IQT, JUL, TPP, TCQ (ida+vuelta)
 -- Factor dinámico: fin de semana +14%, julio +18%, urgente +28%
--- ~100 vuelos/día → ~12,300 vuelos, ~30,750 tarifas, ~86,100 historial
+-- ~100 vuelos/día → ~12,300 vuelos, ~30,750 tarifas, ~215,250 historial
 -- ============================================================
 DO $$
 DECLARE
@@ -428,7 +428,7 @@ BEGIN
       VALUES (v_id, 'premium', v_prem, 32, 10, 0.00, TRUE, TRUE);
     END IF;
 
-    -- Historial de precios: 7 capturas de los últimos 7 días
+    -- Historial de precios: 7 capturas de los últimos 7 días por tarifa
     -- Simula el monitoreo diario que usaría el job de Amadeus
     FOR i IN 1..7 LOOP
       INSERT INTO historial_precio (id_vuelo, precio, tipo_tarifa, fecha_captura)
@@ -438,6 +438,24 @@ BEGIN
         'basica',
         NOW() - (i * INTERVAL '1 day') - (random() * INTERVAL '18 hours')
       );
+
+      INSERT INTO historial_precio (id_vuelo, precio, tipo_tarifa, fecha_captura)
+      VALUES (
+        v_id,
+        ROUND((v_flex * (0.92 + random() * 0.18))::numeric, 2),
+        'flex',
+        NOW() - (i * INTERVAL '1 day') - (random() * INTERVAL '18 hours')
+      );
+
+      IF r.aerolinea_id = 1 THEN
+        INSERT INTO historial_precio (id_vuelo, precio, tipo_tarifa, fecha_captura)
+        VALUES (
+          v_id,
+          ROUND((v_prem * (0.92 + random() * 0.18))::numeric, 2),
+          'premium',
+          NOW() - (i * INTERVAL '1 day') - (random() * INTERVAL '18 hours')
+        );
+      END IF;
     END LOOP;
 
   END LOOP;
