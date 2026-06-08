@@ -6,9 +6,13 @@ import jakarta.validation.constraints.Size;
 
 public record RegistroRequestDTO(
         @NotBlank String nombre,
-        @NotBlank String apellido,
+        @NotBlank String apellidoPaterno,
+        String apellidoMaterno,
+        String genero,
         @NotBlank @Email String email,
-        @NotBlank @Size(min = 6) String password,
+        @NotBlank @Size(min = 8) String password,
         String telefono,
-        String fechaNacimiento
+        String fechaNacimiento,
+        Integer tipoDocumentoId,
+        String nroDocumento
 ) {}

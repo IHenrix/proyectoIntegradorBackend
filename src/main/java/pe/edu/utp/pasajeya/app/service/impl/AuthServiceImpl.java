@@ -8,7 +8,9 @@ import pe.edu.utp.pasajeya.app.model.Persona;
 import pe.edu.utp.pasajeya.app.model.Rol;
 import pe.edu.utp.pasajeya.app.model.TokenVerificacion;
 import pe.edu.utp.pasajeya.app.model.Usuario;
+import pe.edu.utp.pasajeya.app.repository.PersonaRepository;
 import pe.edu.utp.pasajeya.app.repository.RolRepository;
+import pe.edu.utp.pasajeya.app.repository.TipoDocumentoRepository;
 import pe.edu.utp.pasajeya.app.repository.TokenVerificacionRepository;
 import pe.edu.utp.pasajeya.app.repository.UsuarioRepository;
 import pe.edu.utp.pasajeya.app.security.JwtUtil;
@@ -30,54 +32,73 @@ public class AuthServiceImpl implements AuthService {
     private static final Logger log = LoggerFactory.getLogger(AuthServiceImpl.class);
 
     private final UsuarioRepository usuarioRepo;
+    private final PersonaRepository personaRepo;
     private final TokenVerificacionRepository tokenRepo;
     private final RolRepository rolRepo;
+    private final TipoDocumentoRepository tipoDocRepo;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final EmailService emailService;
 
     public AuthServiceImpl(UsuarioRepository usuarioRepo,
+                           PersonaRepository personaRepo,
                            TokenVerificacionRepository tokenRepo,
                            RolRepository rolRepo,
+                           TipoDocumentoRepository tipoDocRepo,
                            PasswordEncoder passwordEncoder,
                            JwtUtil jwtUtil,
                            EmailService emailService) {
-        this.usuarioRepo   = usuarioRepo;
-        this.tokenRepo     = tokenRepo;
-        this.rolRepo       = rolRepo;
+        this.usuarioRepo     = usuarioRepo;
+        this.personaRepo     = personaRepo;
+        this.tokenRepo       = tokenRepo;
+        this.rolRepo         = rolRepo;
+        this.tipoDocRepo     = tipoDocRepo;
         this.passwordEncoder = passwordEncoder;
-        this.jwtUtil       = jwtUtil;
-        this.emailService  = emailService;
+        this.jwtUtil         = jwtUtil;
+        this.emailService    = emailService;
     }
 
     @Override
     @Transactional
     public void registro(RegistroRequestDTO dto) {
-        // Google Guava — Preconditions para validar entradas
-        Preconditions.checkArgument(StringUtils.isNotBlank(dto.email()), "El email no puede estar vacio");
-        Preconditions.checkArgument(StringUtils.isNotBlank(dto.password()), "La contrasena no puede estar vacia");
-        Preconditions.checkArgument(dto.password().length() >= 6, "La contrasena debe tener al menos 6 caracteres");
+        Preconditions.checkArgument(StringUtils.isNotBlank(dto.email()), "El email no puede estar vacío");
+        Preconditions.checkArgument(StringUtils.isNotBlank(dto.password()), "La contraseña no puede estar vacía");
+        Preconditions.checkArgument(dto.password().length() >= 8, "La contraseña debe tener al menos 8 caracteres");
 
-        // Apache Commons — normalizar email a minusculas
         String emailNormalizado = StringUtils.lowerCase(StringUtils.trimToEmpty(dto.email()));
-        log.info("[Guava+Commons] Email normalizado: {}", emailNormalizado);
 
         if (usuarioRepo.existsByEmail(emailNormalizado)) {
-            throw new RuntimeException("El email ya esta registrado");
+            throw new RuntimeException("El correo ya está registrado");
+        }
+
+        String nroDoc = StringUtils.trimToNull(dto.nroDocumento());
+        if (nroDoc != null && personaRepo.existsByNroDocumento(nroDoc)) {
+            throw new RuntimeException("El número de documento ya está registrado");
         }
 
         Persona persona = new Persona();
-        // Apache Commons — capitalizar nombre y apellido
         persona.setNombre(StringUtils.capitalize(StringUtils.trimToEmpty(dto.nombre())));
-        persona.setApellido(StringUtils.capitalize(StringUtils.trimToEmpty(dto.apellido())));
-        persona.setTelefono(dto.telefono());
+        persona.setApellidoPaterno(StringUtils.capitalize(StringUtils.trimToEmpty(dto.apellidoPaterno())));
+        if (StringUtils.isNotBlank(dto.apellidoMaterno())) {
+            persona.setApellidoMaterno(StringUtils.capitalize(StringUtils.trimToEmpty(dto.apellidoMaterno())));
+        }
+        if (StringUtils.isNotBlank(dto.genero())) {
+            persona.setGenero(dto.genero().trim().toUpperCase());
+        }
+        persona.setTelefono(StringUtils.trimToEmpty(dto.telefono()));
         if (dto.fechaNacimiento() != null && !dto.fechaNacimiento().isBlank()) {
             persona.setFechaNacimiento(java.time.LocalDate.parse(dto.fechaNacimiento()));
+        }
+        if (dto.tipoDocumentoId() != null) {
+            tipoDocRepo.findById(dto.tipoDocumentoId()).ifPresent(persona::setTipoDocumento);
+        }
+        if (dto.nroDocumento() != null && !dto.nroDocumento().isBlank()) {
+            persona.setNroDocumento(StringUtils.trimToEmpty(dto.nroDocumento()));
         }
         persona.setFechaRegistro(LocalDateTime.now());
 
         Rol rol = rolRepo.findByNombre("usuario_free")
-                .orElseThrow(() -> new RuntimeException("Rol no encontrado"));
+                .orElseThrow(() -> new RuntimeException("Rol no encontrado en la base de datos"));
 
         Usuario usuario = new Usuario();
         usuario.setPersona(persona);
@@ -99,25 +120,36 @@ public class AuthServiceImpl implements AuthService {
         tv.setFechaCreacion(LocalDateTime.now());
         tokenRepo.save(tv);
 
-        emailService.enviarVerificacion(dto.email(), tokenStr);
-        log.info("Usuario registrado: {}", dto.email());
+        try {
+            emailService.enviarVerificacion(dto.email(), tokenStr);
+        } catch (Exception e) {
+            log.warn("No se pudo enviar email de bienvenida a {}: {}", dto.email(), e.getMessage());
+        }
+
+        log.info("Usuario registrado: {}", emailNormalizado);
     }
 
     @Override
     public LoginResponseDTO login(LoginRequestDTO dto) {
-        Usuario usuario = usuarioRepo.findByEmail(dto.email())
+        String emailNormalizado = StringUtils.lowerCase(StringUtils.trimToEmpty(dto.email()));
+
+        Usuario usuario = usuarioRepo.findByEmail(emailNormalizado)
                 .orElseThrow(() -> new RuntimeException("Credenciales incorrectas"));
 
         if (!passwordEncoder.matches(dto.password(), usuario.getPasswordHash())) {
             throw new RuntimeException("Credenciales incorrectas");
         }
 
-        if (!Boolean.TRUE.equals(usuario.getEmailVerificado())) {
-            throw new RuntimeException("Verifica tu correo antes de iniciar sesion");
+        if (!Boolean.TRUE.equals(usuario.getActivo())) {
+            throw new RuntimeException("La cuenta está desactivada. Contacta al soporte.");
         }
 
-        String token = jwtUtil.generarToken(dto.email());
-        log.info("Login exitoso: {}", dto.email());
+        if (!Boolean.TRUE.equals(usuario.getEmailVerificado())) {
+            throw new RuntimeException("Debes verificar tu correo electrónico antes de ingresar. Revisa tu bandeja de entrada.");
+        }
+
+        String token = jwtUtil.generarToken(emailNormalizado);
+        log.info("Login exitoso: {}", emailNormalizado);
 
         return new LoginResponseDTO(token, usuario.getPersona().getNombre(), usuario.getRol().getNombre());
     }
@@ -126,7 +158,7 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public void verificarEmail(String tokenStr) {
         TokenVerificacion tv = tokenRepo.findByToken(tokenStr)
-                .orElseThrow(() -> new RuntimeException("Token invalido"));
+                .orElseThrow(() -> new RuntimeException("Token inválido"));
 
         if (Boolean.TRUE.equals(tv.getUsado())) {
             throw new RuntimeException("Token ya utilizado");
