@@ -12,10 +12,10 @@
     <relativePath/>
   </parent>
 
-  <groupId>com.pasajeya</groupId>
-  <artifactId>vuelos-service</artifactId>
+  <groupId>pe.edu.utp.pasajeya</groupId>
+  <artifactId>pasaje-ya-backend</artifactId>
   <version>0.0.1-SNAPSHOT</version>
-  <name>vuelos-service</name>
+  <name>pasaje-ya-backend</name>
   <description>PasajeYa – Microservicio de vuelos nacionales</description>
 
   <properties>
