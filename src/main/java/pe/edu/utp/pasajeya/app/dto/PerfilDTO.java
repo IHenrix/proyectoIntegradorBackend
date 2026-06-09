@@ -8,5 +8,7 @@ public record PerfilDTO(
         String telefono,
         String fechaNacimiento,
         String email,
-        String rol
+        String rol,
+        String tipoDocumento,
+        String nroDocumento
 ) {}

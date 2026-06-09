@@ -7,6 +7,8 @@ public record ActualizarPerfilRequestDTO(
         String genero,
         String telefono,
         String fechaNacimiento,
+        String tipoDocumento,
+        String nroDocumento,
         String passwordActual,
         String passwordNuevo
 ) {}

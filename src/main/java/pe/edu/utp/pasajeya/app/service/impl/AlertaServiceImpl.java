@@ -54,12 +54,29 @@ public class AlertaServiceImpl implements AlertaService {
                 .toList();
     }
 
+    private static final int LIMITE_FREE = 3;
+
     @Override
     @Transactional
     public AlertaDTO crear(String email, CrearAlertaRequestDTO request) {
         Usuario usuario = usuarioRepo.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+
         Tarifa tarifa = resolverTarifa(request);
+
+        if (alertaRepo.existsByUsuarioEmailAndVueloIdAndTipoTarifa(
+                email, tarifa.getVuelo().getId(), tarifa.getTipo())) {
+            throw new RuntimeException("ALERTA_DUPLICADA");
+        }
+
+        String rol = usuario.getRol().getNombre();
+        boolean esFree = "usuario_free".equals(rol);
+        if (esFree) {
+            long total = alertaRepo.countByUsuarioEmail(email);
+            if (total >= LIMITE_FREE) {
+                throw new RuntimeException("LIMITE_ALERTAS");
+            }
+        }
 
         Alerta alerta = new Alerta();
         alerta.setUsuario(usuario);
@@ -79,6 +96,15 @@ public class AlertaServiceImpl implements AlertaService {
         Alerta alerta = alertaRepo.findByIdAndUsuarioEmail(id, email)
                 .orElseThrow(() -> new RuntimeException("Alerta no encontrada"));
         alerta.setActiva(false);
+        return toDto(alertaRepo.save(alerta));
+    }
+
+    @Override
+    @Transactional
+    public AlertaDTO reactivar(String email, Integer id) {
+        Alerta alerta = alertaRepo.findByIdAndUsuarioEmail(id, email)
+                .orElseThrow(() -> new RuntimeException("Alerta no encontrada"));
+        alerta.setActiva(true);
         return toDto(alertaRepo.save(alerta));
     }
 

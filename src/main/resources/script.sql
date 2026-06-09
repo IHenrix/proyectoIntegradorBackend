@@ -231,17 +231,21 @@ INSERT INTO aeropuerto (codigo, nombre, ciudad) VALUES
   ('TPP', 'Guillermo del Castillo Paredes',  'Tarapoto'),
   ('TCQ', 'Coronel Carlos Ciriani Santa Rosa','Tacna');
 
-INSERT INTO persona (id_tipo_doc, nro_documento, nombre, apellido_paterno, apellido_materno, genero, telefono) VALUES
-  (1, '74405646', 'PEDRO LUIS',  'YARLEQUE', 'LINARES', 'M', '+51999999999'),
-  (1, '12345678', 'ENRIQUE',     'PRADA',    'GUERRA',  'M', '+51999888777');
+INSERT INTO persona (id_tipo_doc, nro_documento, nombre, apellido_paterno, apellido_materno, genero, telefono, fecha_nacimiento) VALUES
+  (1, '74405646', 'PEDRO LUIS',  'YARLEQUE', 'LINARES',  'M', '+51999999999', '1988-03-15'),
+  (1, '12345678', 'ENRIQUE',     'PRADA',    'GUERRA',   'M', '+51999888777', '2002-07-22'),
+  (1, '47382910', 'JUAN JOSE',   'MORALES',  'VELASQUEZ','M', '+51935430273', '1990-11-08');
 
--- Admin (id_persona=1) y usuario free Enrique (id_persona=2)
--- Ambos comparten el mismo password_hash: misma contraseña del admin
+-- id_persona=1 admin, id_persona=2 free Enrique, id_persona=3 premium Juan José
+-- Todos comparten el mismo password_hash
 INSERT INTO usuario (id_persona, id_rol, email, password_hash, proveedor, activo, email_verificado) VALUES
   (1, 3, 'admin@pasajeya.com.pe',
    '$2b$10$T57RmaZUJZkaawlRVyL7puM0x9CfILDd0Iv4cRyisthg/I.Pc4eEW',
    'email', TRUE, TRUE),
   (2, 1, 'enrique.pdg@gmail.com',
+   '$2b$10$T57RmaZUJZkaawlRVyL7puM0x9CfILDd0Iv4cRyisthg/I.Pc4eEW',
+   'email', TRUE, TRUE),
+  (3, 2, 'renrique_prada@hotmail.com',
    '$2b$10$T57RmaZUJZkaawlRVyL7puM0x9CfILDd0Iv4cRyisthg/I.Pc4eEW',
    'email', TRUE, TRUE);
    

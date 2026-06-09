@@ -43,6 +43,11 @@ public class AlertaController {
         return ResponseEntity.ok(alertaService.pausar(auth.getName(), id));
     }
 
+    @PatchMapping("/{id}/reactivar")
+    public ResponseEntity<AlertaDTO> reactivar(Authentication auth, @PathVariable Integer id) {
+        return ResponseEntity.ok(alertaService.reactivar(auth.getName(), id));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(Authentication auth, @PathVariable Integer id) {
         alertaService.eliminar(auth.getName(), id);

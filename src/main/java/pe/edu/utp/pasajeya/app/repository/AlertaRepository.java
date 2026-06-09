@@ -13,4 +13,8 @@ public interface AlertaRepository extends JpaRepository<Alerta, Integer> {
     Optional<Alerta> findByIdAndUsuarioEmail(Integer id, String email);
 
     List<Alerta> findByActivaTrue();
+
+    long countByUsuarioEmail(String email);
+
+    boolean existsByUsuarioEmailAndVueloIdAndTipoTarifa(String email, Integer vueloId, String tipoTarifa);
 }

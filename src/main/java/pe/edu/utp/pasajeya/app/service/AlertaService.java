@@ -13,6 +13,8 @@ public interface AlertaService {
 
     AlertaDTO pausar(String email, Integer id);
 
+    AlertaDTO reactivar(String email, Integer id);
+
     void eliminar(String email, Integer id);
 
     void evaluarAlertasActivas();
