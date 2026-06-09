@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 public interface HistorialPrecioRepository extends JpaRepository<HistorialPrecio, Integer> {
@@ -18,4 +19,9 @@ public interface HistorialPrecioRepository extends JpaRepository<HistorialPrecio
             @Param("idVuelo")    Integer idVuelo,
             @Param("tipoTarifa") String tipoTarifa,
             @Param("desde")      LocalDateTime desde);
+
+    List<HistorialPrecio> findByVueloIdAndTipoTarifaAndFechaCapturaGreaterThanEqualOrderByFechaCapturaAsc(
+            Integer idVuelo,
+            String tipoTarifa,
+            LocalDateTime desde);
 }

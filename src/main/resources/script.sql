@@ -171,8 +171,13 @@ CREATE TABLE alerta (
   id_alerta       INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   id_usuario      INTEGER NOT NULL REFERENCES usuario(id_usuario),
   id_vuelo        INTEGER NOT NULL REFERENCES vuelo(id_vuelo),
+  tipo_tarifa     VARCHAR(20) NOT NULL DEFAULT 'basica'
+                    CHECK (tipo_tarifa IN ('basica','flex','premium')),
   precio_objetivo NUMERIC(8,2) NOT NULL CHECK (precio_objetivo > 0),
+  telefono        VARCHAR(20) NOT NULL,
   activa          BOOLEAN NOT NULL DEFAULT TRUE,
+  ultimo_precio_notificado NUMERIC(8,2),
+  fecha_ultima_notificacion TIMESTAMP,
   fecha_creacion  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

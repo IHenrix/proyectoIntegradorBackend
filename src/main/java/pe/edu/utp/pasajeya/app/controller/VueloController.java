@@ -1,7 +1,9 @@
 package pe.edu.utp.pasajeya.app.controller;
 
 import pe.edu.utp.pasajeya.app.dto.VueloDTO;
+import pe.edu.utp.pasajeya.app.dto.VueloDetalleDTO;
 import pe.edu.utp.pasajeya.app.service.VueloExcelService;
+import pe.edu.utp.pasajeya.app.service.VueloDetalleService;
 import pe.edu.utp.pasajeya.app.service.VueloService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,10 +23,14 @@ public class VueloController {
 
     private final VueloService      vueloService;
     private final VueloExcelService excelService;
+    private final VueloDetalleService detalleService;
 
-    public VueloController(VueloService vueloService, VueloExcelService excelService) {
+    public VueloController(VueloService vueloService,
+                           VueloExcelService excelService,
+                           VueloDetalleService detalleService) {
         this.vueloService = vueloService;
         this.excelService = excelService;
+        this.detalleService = detalleService;
     }
 
     /** GET /api/vuelos?origen=LIM&destino=CUZ&fecha=2026-06-15&pasajeros=1 */
@@ -41,6 +47,12 @@ public class VueloController {
         log.info("Respondiendo {} vuelos encontrados", vuelos.size());
 
         return ResponseEntity.ok(vuelos);
+    }
+
+    /** GET /api/vuelos/tarifas/123 */
+    @GetMapping("/tarifas/{tarifaId}")
+    public ResponseEntity<VueloDetalleDTO> detalle(@PathVariable Long tarifaId) {
+        return ResponseEntity.ok(detalleService.obtenerDetalle(tarifaId));
     }
 
     /** GET /api/vuelos/exportar?origen=LIM&destino=CUZ&fecha=2026-06-15 */
