@@ -232,10 +232,16 @@ INSERT INTO aeropuerto (codigo, nombre, ciudad) VALUES
   ('TCQ', 'Coronel Carlos Ciriani Santa Rosa','Tacna');
 
 INSERT INTO persona (id_tipo_doc, nro_documento, nombre, apellido_paterno, apellido_materno, genero, telefono) VALUES
-  (1, '74405646', 'PEDRO LUIS', 'YARLEQUE', 'LINARES', 'M', '+51999999999');
+  (1, '74405646', 'PEDRO LUIS',  'YARLEQUE', 'LINARES', 'M', '+51999999999'),
+  (1, '12345678', 'ENRIQUE',     'PRADA',    'GUERRA',  'M', '+51999888777');
 
+-- Admin (id_persona=1) y usuario free Enrique (id_persona=2)
+-- Ambos comparten el mismo password_hash: misma contraseña del admin
 INSERT INTO usuario (id_persona, id_rol, email, password_hash, proveedor, activo, email_verificado) VALUES
   (1, 3, 'admin@pasajeya.com.pe',
+   '$2b$10$T57RmaZUJZkaawlRVyL7puM0x9CfILDd0Iv4cRyisthg/I.Pc4eEW',
+   'email', TRUE, TRUE),
+  (2, 1, 'enrique.pdg@gmail.com',
    '$2b$10$T57RmaZUJZkaawlRVyL7puM0x9CfILDd0Iv4cRyisthg/I.Pc4eEW',
    'email', TRUE, TRUE);
    
@@ -433,34 +439,64 @@ BEGIN
       VALUES (v_id, 'premium', v_prem, 32, 10, 0.00, TRUE, TRUE);
     END IF;
 
-    -- Historial de precios: 7 capturas de los últimos 7 días por tarifa
-    -- Simula el monitoreo diario que usaría el job de Amadeus
-    FOR i IN 1..7 LOOP
-      INSERT INTO historial_precio (id_vuelo, precio, tipo_tarifa, fecha_captura)
-      VALUES (
-        v_id,
-        ROUND((v_bas * (0.92 + random() * 0.18))::numeric, 2),
-        'basica',
-        NOW() - (i * INTERVAL '1 day') - (random() * INTERVAL '18 hours')
-      );
+    -- Historial 30 días — 4 perfiles de curva según id_vuelo % 4:
+    --   0 = subiendo gradual  (+15% en 30d, demanda creciente)
+    --   1 = bajando gradual   (-15% en 30d, asientos disponibles)
+    --   2 = volátil           (oscila ±12% cada ~5d, yield management)
+    --   3 = estable + spike   (plano, +20% días 15-20, vuelve a base)
+    FOR i IN 1..30 LOOP
+      DECLARE
+        v_factor_hist NUMERIC(8,4);
+        v_dia_inv     INTEGER := 31 - i;  -- día 30=más antiguo, día 1=ayer
+      BEGIN
+        v_factor_hist :=
+          CASE v_id % 4
+            WHEN 0 THEN
+              -- Subiendo: empieza en 0.85 y llega a 1.00 de forma lineal, ruido ±3%
+              0.85 + (v_dia_inv::NUMERIC / 30.0) * 0.15
+              + (random() * 0.06 - 0.03)
+            WHEN 1 THEN
+              -- Bajando: empieza en 1.15 y llega a 1.00, ruido ±3%
+              1.15 - (v_dia_inv::NUMERIC / 30.0) * 0.15
+              + (random() * 0.06 - 0.03)
+            WHEN 2 THEN
+              -- Volátil: seno con período ~10 días, amplitud 12%, ruido ±2%
+              1.0 + 0.12 * SIN(v_dia_inv::NUMERIC * 0.628)
+              + (random() * 0.04 - 0.02)
+            ELSE
+              -- Estable + spike días 10-15 (contando desde hoy hacia atrás)
+              CASE WHEN i BETWEEN 10 AND 15
+                THEN 1.20 + (random() * 0.06 - 0.03)
+                ELSE 1.00 + (random() * 0.06 - 0.03)
+              END
+          END;
 
-      INSERT INTO historial_precio (id_vuelo, precio, tipo_tarifa, fecha_captura)
-      VALUES (
-        v_id,
-        ROUND((v_flex * (0.92 + random() * 0.18))::numeric, 2),
-        'flex',
-        NOW() - (i * INTERVAL '1 day') - (random() * INTERVAL '18 hours')
-      );
-
-      IF r.aerolinea_id = 1 THEN
         INSERT INTO historial_precio (id_vuelo, precio, tipo_tarifa, fecha_captura)
         VALUES (
           v_id,
-          ROUND((v_prem * (0.92 + random() * 0.18))::numeric, 2),
-          'premium',
-          NOW() - (i * INTERVAL '1 day') - (random() * INTERVAL '18 hours')
+          ROUND((v_bas * GREATEST(v_factor_hist, 0.70))::numeric, 2),
+          'basica',
+          NOW() - (i * INTERVAL '1 day') - (random() * INTERVAL '6 hours')
         );
-      END IF;
+
+        INSERT INTO historial_precio (id_vuelo, precio, tipo_tarifa, fecha_captura)
+        VALUES (
+          v_id,
+          ROUND((v_flex * GREATEST(v_factor_hist, 0.70))::numeric, 2),
+          'flex',
+          NOW() - (i * INTERVAL '1 day') - (random() * INTERVAL '6 hours')
+        );
+
+        IF r.aerolinea_id = 1 THEN
+          INSERT INTO historial_precio (id_vuelo, precio, tipo_tarifa, fecha_captura)
+          VALUES (
+            v_id,
+            ROUND((v_prem * GREATEST(v_factor_hist, 0.70))::numeric, 2),
+            'premium',
+            NOW() - (i * INTERVAL '1 day') - (random() * INTERVAL '6 hours')
+          );
+        END IF;
+      END;
     END LOOP;
 
   END LOOP;

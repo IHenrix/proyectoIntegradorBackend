@@ -68,7 +68,9 @@ public class VueloDetalleServiceImpl implements VueloDetalleService {
                 tarifa.getPermiteReembolso(),
                 tarifa.getAsientoSeleccionable(),
                 calcularSemaforo(historial, tarifa.getPrecio().doubleValue()),
-                vuelo.getAerolinea().getUrlWeb() != null ? vuelo.getAerolinea().getUrlWeb() : "#",
+                buildUrl(vuelo.getAerolinea().getNombre(),
+                        vuelo.getOrigen().trim(), vuelo.getDestino().trim(),
+                        vuelo.getFechaSalida().toString(), 1),
                 historico,
                 prediccion,
                 recomendacion
@@ -155,5 +157,33 @@ public class VueloDetalleServiceImpl implements VueloDetalleService {
         int horas = minutos / 60;
         int mins = minutos % 60;
         return horas > 0 ? String.format("%dh %02dm", horas, mins) : String.format("%dm", mins);
+    }
+
+    private String buildUrl(String nombreAerolinea, String origen, String destino,
+                            String fecha, int pasajeros) {
+        String upper = nombreAerolinea.toUpperCase();
+        if (upper.contains("LATAM")) {
+            return String.format(
+                "https://www.latamairlines.com/pe/es/oferta-vuelos" +
+                "?origin=%s&destination=%s&outbound=%sT00:00:00.000Z" +
+                "&inbound=null&adt=%d&chd=0&inf=0&trip=OW&cabin=Economy" +
+                "&redemption=false&sort=RECOMMENDED",
+                origen, destino, fecha, pasajeros);
+        }
+        if (upper.contains("JETSMART")) {
+            return String.format(
+                "https://booking.jetsmart.com/Flight/InternalSelect" +
+                "?o1=%s&d1=%s&dd1=%s&ADT=%d&c=false&mon=true" +
+                "&r=false&cur=PEN&culture=es-PE",
+                origen, destino, fecha, pasajeros);
+        }
+        if (upper.contains("SKY")) {
+            return String.format(
+                "https://www.skyscanner.net/transport/flights/%s/%s/%s" +
+                "/?adults=%d&cabinclass=economy&currency=PEN&locale=es-PE&market=PE",
+                origen.toLowerCase(), destino.toLowerCase(),
+                fecha.replace("-", "").substring(2), pasajeros);
+        }
+        return "#";
     }
 }
