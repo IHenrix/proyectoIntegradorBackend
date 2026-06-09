@@ -175,7 +175,7 @@ CREATE TABLE busqueda (
   destino        CHAR(3) NOT NULL,
   fecha_viaje    DATE NOT NULL,
   num_pasajeros  SMALLINT NOT NULL DEFAULT 1
-                   CHECK (num_pasajeros BETWEEN 1 AND 9),
+                   CHECK (num_pasajeros BETWEEN 1 AND 4),
   fecha_busqueda TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -468,33 +468,33 @@ BEGIN
       VALUES (v_id, 'premium', v_prem, 32, 10, 0.00, TRUE, TRUE);
     END IF;
 
-    -- Historial 30 días — 4 perfiles de curva según id_vuelo % 4:
+    -- Historial 90 días — 4 perfiles de curva según id_vuelo % 4:
     --   0 = subiendo gradual  (+15% en 30d, demanda creciente)
     --   1 = bajando gradual   (-15% en 30d, asientos disponibles)
     --   2 = volátil           (oscila ±12% cada ~5d, yield management)
     --   3 = estable + spike   (plano, +20% días 15-20, vuelve a base)
-    FOR i IN 1..30 LOOP
+    FOR i IN 1..90 LOOP
       DECLARE
         v_factor_hist NUMERIC(8,4);
-        v_dia_inv     INTEGER := 31 - i;  -- día 30=más antiguo, día 1=ayer
+        v_dia_inv     INTEGER := 91 - i;  -- día 90=más antiguo, día 1=ayer
       BEGIN
         v_factor_hist :=
           CASE v_id % 4
             WHEN 0 THEN
               -- Subiendo: empieza en 0.85 y llega a 1.00 de forma lineal, ruido ±3%
-              0.85 + (v_dia_inv::NUMERIC / 30.0) * 0.15
+              0.85 + (v_dia_inv::NUMERIC / 90.0) * 0.15
               + (random() * 0.06 - 0.03)
             WHEN 1 THEN
               -- Bajando: empieza en 1.15 y llega a 1.00, ruido ±3%
-              1.15 - (v_dia_inv::NUMERIC / 30.0) * 0.15
+              1.15 - (v_dia_inv::NUMERIC / 90.0) * 0.15
               + (random() * 0.06 - 0.03)
             WHEN 2 THEN
               -- Volátil: seno con período ~10 días, amplitud 12%, ruido ±2%
               1.0 + 0.12 * SIN(v_dia_inv::NUMERIC * 0.628)
               + (random() * 0.04 - 0.02)
             ELSE
-              -- Estable + spike días 10-15 (contando desde hoy hacia atrás)
-              CASE WHEN i BETWEEN 10 AND 15
+              -- Estable + spike días 30-45 (contando desde hoy hacia atrás)
+              CASE WHEN i BETWEEN 30 AND 45
                 THEN 1.20 + (random() * 0.06 - 0.03)
                 ELSE 1.00 + (random() * 0.06 - 0.03)
               END

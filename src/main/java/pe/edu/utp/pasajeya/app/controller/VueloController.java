@@ -5,16 +5,20 @@ import pe.edu.utp.pasajeya.app.dto.VueloDetalleDTO;
 import pe.edu.utp.pasajeya.app.service.VueloExcelService;
 import pe.edu.utp.pasajeya.app.service.VueloDetalleService;
 import pe.edu.utp.pasajeya.app.service.VueloService;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.util.List;
 
+@Validated
 @RestController
 @RequestMapping("/api/vuelos")
 public class VueloController {
@@ -39,7 +43,7 @@ public class VueloController {
             @RequestParam String origen,
             @RequestParam String destino,
             @RequestParam String fecha,
-            @RequestParam(defaultValue = "1") int pasajeros) {
+            @RequestParam(defaultValue = "1") @Min(1) @Max(4) int pasajeros) {
 
         log.info("Request recibido → {} a {} | fecha: {}", origen, destino, fecha);
 
@@ -61,7 +65,7 @@ public class VueloController {
             @RequestParam String origen,
             @RequestParam String destino,
             @RequestParam String fecha,
-            @RequestParam(defaultValue = "1") int pasajeros) throws IOException {
+            @RequestParam(defaultValue = "1") @Min(1) @Max(4) int pasajeros) throws IOException {
 
         log.info("Exportando Excel → {} a {} ({})", origen, destino, fecha);
 
