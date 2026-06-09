@@ -2,17 +2,22 @@ package pe.edu.utp.pasajeya.app.controller;
 
 import pe.edu.utp.pasajeya.app.dto.ActualizarPerfilRequestDTO;
 import pe.edu.utp.pasajeya.app.dto.PerfilDTO;
+import pe.edu.utp.pasajeya.app.dto.SuscripcionDTO;
 import pe.edu.utp.pasajeya.app.model.Persona;
 import pe.edu.utp.pasajeya.app.model.TipoDocumento;
 import pe.edu.utp.pasajeya.app.model.Usuario;
+import pe.edu.utp.pasajeya.app.repository.PagoRepository;
 import pe.edu.utp.pasajeya.app.repository.PersonaRepository;
+import pe.edu.utp.pasajeya.app.repository.SuscripcionRepository;
 import pe.edu.utp.pasajeya.app.repository.TipoDocumentoRepository;
 import pe.edu.utp.pasajeya.app.repository.UsuarioRepository;
 import pe.edu.utp.pasajeya.app.security.JwtUtil;
+import jakarta.transaction.Transactional;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api/perfil")
@@ -21,17 +26,23 @@ public class PerfilController {
     private final UsuarioRepository       usuarioRepo;
     private final PersonaRepository       personaRepo;
     private final TipoDocumentoRepository tipoDocRepo;
+    private final SuscripcionRepository   suscripcionRepo;
+    private final PagoRepository          pagoRepo;
     private final JwtUtil                 jwtUtil;
     private final PasswordEncoder         passwordEncoder;
 
     public PerfilController(UsuarioRepository usuarioRepo,
                             PersonaRepository personaRepo,
                             TipoDocumentoRepository tipoDocRepo,
+                            SuscripcionRepository suscripcionRepo,
+                            PagoRepository pagoRepo,
                             JwtUtil jwtUtil,
                             PasswordEncoder passwordEncoder) {
         this.usuarioRepo     = usuarioRepo;
         this.personaRepo     = personaRepo;
         this.tipoDocRepo     = tipoDocRepo;
+        this.suscripcionRepo = suscripcionRepo;
+        this.pagoRepo        = pagoRepo;
         this.jwtUtil         = jwtUtil;
         this.passwordEncoder = passwordEncoder;
     }
@@ -42,6 +53,85 @@ public class PerfilController {
         Usuario u = resolverUsuario(authHeader);
         Persona p = u.getPersona();
         return ResponseEntity.ok(toDTO(u, p));
+    }
+
+    /**
+     * GET /api/perfil/suscripciones — historial completo (tabla de todas las suscripciones)
+     */
+    @Transactional
+    @GetMapping("/suscripciones")
+    public ResponseEntity<java.util.List<SuscripcionDTO>> historialSuscripciones(
+            @RequestHeader("Authorization") String authHeader) {
+
+        Usuario u   = resolverUsuario(authHeader);
+        LocalDate hoy = LocalDate.now();
+        suscripcionRepo.expirarVencidas(hoy);
+
+        java.util.List<SuscripcionDTO> lista = suscripcionRepo
+                .findHistorial(u.getPersona().getId())
+                .stream()
+                .map(s -> {
+                    String tipo = s.getPlan().getDuracionDias() >= 365 ? "anual" : "mensual";
+                    String ref  = pagoRepo.findById(s.getIdPagoOrigen())
+                            .map(p -> p.getRefInterna())
+                            .orElse("—");
+                    return new SuscripcionDTO(
+                            s.getId(),
+                            s.getPlan().getNombre(),
+                            tipo,
+                            s.getPrecioPagado(),
+                            s.getFechaInicio().toString(),
+                            s.getFechaFin().toString(),
+                            s.getEstado(),
+                            s.getMetodoPago(),
+                            ref
+                    );
+                })
+                .toList();
+
+        return ResponseEntity.ok(lista);
+    }
+
+    /**
+     * GET /api/perfil/suscripcion
+     * 1. Expira en BD cualquier suscripción activa con fecha_fin pasada (lazy expiry).
+     * 2. Devuelve la suscripción vigente (activa Y fecha_fin >= hoy) o 204 si no hay.
+     * 3. Lee ref_interna desde la tabla pago para mostrar el número de referencia real.
+     */
+    @Transactional
+    @GetMapping("/suscripcion")
+    public ResponseEntity<SuscripcionDTO> suscripcionActiva(
+            @RequestHeader("Authorization") String authHeader) {
+
+        Usuario u   = resolverUsuario(authHeader);
+        LocalDate hoy = LocalDate.now();
+
+        // Expirar suscripciones vencidas de este usuario (lazy — sin scheduler)
+        suscripcionRepo.expirarVencidas(hoy);
+
+        return suscripcionRepo
+                .findVigente(u.getPersona().getId(), hoy)
+                .map(s -> {
+                    String tipo = s.getPlan().getDuracionDias() >= 365 ? "anual" : "mensual";
+
+                    // Leer ref_interna del pago origen si existe
+                    String ref = pagoRepo.findById(s.getIdPagoOrigen())
+                            .map(p -> p.getRefInterna())
+                            .orElse("—");
+
+                    return ResponseEntity.ok(new SuscripcionDTO(
+                            s.getId(),
+                            s.getPlan().getNombre(),
+                            tipo,
+                            s.getPrecioPagado(),
+                            s.getFechaInicio().toString(),
+                            s.getFechaFin().toString(),
+                            s.getEstado(),
+                            s.getMetodoPago(),
+                            ref
+                    ));
+                })
+                .orElse(ResponseEntity.noContent().build());
     }
 
     /** PUT /api/perfil */

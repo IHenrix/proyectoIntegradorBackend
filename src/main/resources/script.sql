@@ -13,6 +13,7 @@ DROP TABLE IF EXISTS vuelo            CASCADE;
 DROP TABLE IF EXISTS aeropuerto       CASCADE;
 DROP TABLE IF EXISTS aerolinea        CASCADE;
 DROP TABLE IF EXISTS suscripcion      CASCADE;
+DROP TABLE IF EXISTS pago             CASCADE;
 DROP TABLE IF EXISTS sesion           CASCADE;
 DROP TABLE IF EXISTS plan             CASCADE;
 DROP TABLE IF EXISTS usuario          CASCADE;
@@ -84,10 +85,32 @@ CREATE TABLE plan (
   activo          BOOLEAN NOT NULL DEFAULT TRUE
 );
 
+CREATE TABLE pago (
+  id_pago          INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id_persona       INTEGER NOT NULL REFERENCES persona(id_persona),
+  id_plan          INTEGER NOT NULL REFERENCES plan(id_plan),
+  monto            NUMERIC(8,2) NOT NULL,
+  moneda           CHAR(3)      NOT NULL DEFAULT 'PEN',
+  metodo           VARCHAR(30)  NOT NULL
+                     CHECK (metodo IN ('tarjeta_credito','tarjeta_debito','yape','plin','manual')),
+  estado           VARCHAR(20)  NOT NULL DEFAULT 'aprobado'
+                     CHECK (estado IN ('pendiente','aprobado','rechazado','reembolsado')),
+  pasarela         VARCHAR(30)  NOT NULL DEFAULT 'culqi'
+                     CHECK (pasarela IN ('culqi','izipay','manual')),
+  token_pasarela   VARCHAR(100),           -- charge_id que devuelve Culqi en producción
+  ultimos_cuatro   CHAR(4),               -- últimos 4 dígitos de la tarjeta
+  marca_tarjeta    VARCHAR(20),           -- visa / mastercard / amex
+  titular_tarjeta  VARCHAR(100),
+  email_recibo     VARCHAR(150),
+  ref_interna      VARCHAR(20) NOT NULL,  -- número estilo #123456 que se muestra al usuario
+  fecha_pago       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE suscripcion (
   id_suscripcion       INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   id_persona           INTEGER NOT NULL REFERENCES persona(id_persona),
   id_plan              INTEGER NOT NULL REFERENCES plan(id_plan),
+  id_pago_origen       INTEGER REFERENCES pago(id_pago),
   precio_pagado        NUMERIC(8,2) NOT NULL,
   max_alertas_snapshot SMALLINT NOT NULL,
   fecha_inicio         DATE NOT NULL,
@@ -195,9 +218,11 @@ CREATE INDEX idx_historial_vuelo  ON historial_precio(id_vuelo, fecha_captura);
 CREATE INDEX idx_busqueda_usuario ON busqueda(id_usuario, fecha_busqueda);
 CREATE INDEX idx_consulta_usuario ON consulta_tarifa(id_usuario, fecha);
 CREATE INDEX idx_consulta_accion  ON consulta_tarifa(accion, fecha);
-CREATE INDEX idx_alerta_usuario   ON alerta(id_usuario, activa);
-CREATE INDEX idx_alerta_vuelo     ON alerta(id_vuelo, activa);
-CREATE INDEX idx_token_usuario    ON token_verificacion(id_usuario);
+CREATE INDEX idx_alerta_usuario    ON alerta(id_usuario, activa);
+CREATE INDEX idx_alerta_vuelo      ON alerta(id_vuelo, activa);
+CREATE INDEX idx_token_usuario     ON token_verificacion(id_usuario);
+CREATE INDEX idx_suscripcion_persona ON suscripcion(id_persona, estado, fecha_fin DESC);
+CREATE INDEX idx_pago_persona      ON pago(id_persona, estado, fecha_pago DESC);
 
 INSERT INTO tipo_documento (codigo, nombre, longitud) VALUES
   ('DNI', 'Documento Nacional de Identidad',  8),
@@ -505,3 +530,44 @@ BEGIN
 
   END LOOP;
 END $$;
+
+-- ============================================================
+-- PAGO + SUSCRIPCIÓN DE JUAN JOSÉ MORALES (id_persona = 3)
+-- Plan: Premium Anual (id_plan = 3) · S/ 120.00
+-- Pagado: 2025-06-09 con Visa terminada en 4242
+-- Vigente: 2025-06-09 → 2026-06-09
+-- ============================================================
+
+INSERT INTO pago (
+  id_persona, id_plan,
+  monto, moneda,
+  metodo, estado, pasarela,
+  token_pasarela,
+  ultimos_cuatro, marca_tarjeta, titular_tarjeta,
+  email_recibo,
+  ref_interna,
+  fecha_pago
+) VALUES (
+  3, 3,
+  120.00, 'PEN',
+  'tarjeta_credito', 'aprobado', 'culqi',
+  'chr_test_xK9mP2qR7nL4sW8vA1bC3dE6',
+  '4242', 'visa', 'JUAN JOSE MORALES VELASQUEZ',
+  'renrique_prada@hotmail.com',
+  '748291',
+  '2025-06-09 14:23:07'
+);
+
+INSERT INTO suscripcion (
+  id_persona, id_plan, id_pago_origen,
+  precio_pagado, max_alertas_snapshot,
+  fecha_inicio, fecha_fin,
+  estado, metodo_pago
+)
+SELECT
+  3, 3, id_pago,
+  120.00, 999,
+  '2025-06-09', '2026-06-09',
+  'activa', 'tarjeta_credito'
+FROM pago
+WHERE ref_interna = '748291';
