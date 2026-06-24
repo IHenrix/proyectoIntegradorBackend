@@ -16,9 +16,8 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
 
-// Carga solo el contexto JPA (no carga controllers ni services)
 @DataJpaTest
-@ActiveProfiles("test") // usa application-test.properties
+@ActiveProfiles("test")
 class AlertaRepositoryTest {
 
     @Autowired
@@ -46,7 +45,6 @@ class AlertaRepositoryTest {
         usuarioAna = usuarioRepository.save(crearUsuario("ana@test.com", rolFree));
         usuarioLuis = usuarioRepository.save(crearUsuario("luis@test.com", rolFree));
 
-        // Aerolinea no tiene repositorio propio: se persiste con el EntityManager de pruebas
         Aerolinea aerolinea = entityManager.persistAndFlush(crearAerolinea("LATAM Airlines"));
         vuelo = vueloRepository.save(crearVuelo(aerolinea));
     }
@@ -142,8 +140,6 @@ class AlertaRepositoryTest {
         assertThat(activas).hasSize(1);
         assertThat(activas.get(0).getId()).isEqualTo(activa.getId());
     }
-
-    // ── Helpers ──────────────────────────────────────────────────────────
 
     private Rol crearRol(String nombre) {
         Rol rol = new Rol();

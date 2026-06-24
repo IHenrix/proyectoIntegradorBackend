@@ -40,10 +40,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AlertaControllerTest {
 
     @Autowired
-    private MockMvc mockMvc; // Cliente HTTP simulado
+    private MockMvc mockMvc;
 
     @MockBean
-    private AlertaService alertaService; // Mock del servicio
+    private AlertaService alertaService;
 
     @MockBean
     private AlertaExcelService excelService;
@@ -57,7 +57,7 @@ class AlertaControllerTest {
     private JwtUtil jwtUtil;
 
     @Autowired
-    private ObjectMapper objectMapper; // Para convertir objetos a JSON
+    private ObjectMapper objectMapper;
 
     private AlertaDTO alertaDePrueba;
 
@@ -70,8 +70,6 @@ class AlertaControllerTest {
                 "2026-06-23T10:00:00", "Activa"
         );
 
-        // El JwtFilter mockeado debe dejar pasar la cadena de filtros,
-        // de lo contrario la request nunca llega al controller.
         doAnswer(invocation -> {
             FilterChain chain = invocation.getArgument(2);
             chain.doFilter(invocation.getArgument(0), invocation.getArgument(1));
@@ -86,10 +84,8 @@ class AlertaControllerTest {
     @WithMockUser(username = "ana@test.com")
     @DisplayName("GET /api/alertas debe retornar lista de alertas del usuario autenticado")
     void getTodasLasAlertas_debeRetornar200ConLista() throws Exception {
-        // GIVEN
         when(alertaService.listar("ana@test.com")).thenReturn(List.of(alertaDePrueba));
 
-        // WHEN + THEN
         mockMvc.perform(get("/api/alertas")
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
@@ -105,7 +101,6 @@ class AlertaControllerTest {
     @WithMockUser(username = "ana@test.com")
     @DisplayName("POST /api/alertas debe crear alerta y retornar 200")
     void postAlerta_debeCrearYRetornar200() throws Exception {
-        // GIVEN
         CrearAlertaRequestDTO request = new CrearAlertaRequestDTO(
                 100L, null, null, null, null, 200.0, "987654321");
         when(alertaService.crear(eq("ana@test.com"), any(CrearAlertaRequestDTO.class)))
@@ -113,7 +108,6 @@ class AlertaControllerTest {
 
         String jsonRequest = objectMapper.writeValueAsString(request);
 
-        // WHEN + THEN
         mockMvc.perform(post("/api/alertas")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -130,7 +124,6 @@ class AlertaControllerTest {
     @WithMockUser(username = "ana@test.com")
     @DisplayName("PATCH /api/alertas/1/pausar debe retornar la alerta pausada")
     void patchPausar_debeRetornar200ConAlertaPausada() throws Exception {
-        // GIVEN
         AlertaDTO pausada = new AlertaDTO(
                 1, 100L, 10, "LATAM", "LIM", "CUZ",
                 "2026-07-01", "08:30", "basica",
@@ -139,7 +132,6 @@ class AlertaControllerTest {
         );
         when(alertaService.pausar("ana@test.com", 1)).thenReturn(pausada);
 
-        // WHEN + THEN
         mockMvc.perform(patch("/api/alertas/1/pausar").with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.activa").value(false))
@@ -153,10 +145,8 @@ class AlertaControllerTest {
     @WithMockUser(username = "ana@test.com")
     @DisplayName("DELETE /api/alertas/1 debe retornar 204 No Content")
     void deleteAlerta_debeRetornar204() throws Exception {
-        // GIVEN
         doNothing().when(alertaService).eliminar("ana@test.com", 1);
 
-        // WHEN + THEN
         mockMvc.perform(delete("/api/alertas/1").with(csrf()))
                 .andExpect(status().isNoContent());
 
@@ -170,7 +160,6 @@ class AlertaControllerTest {
     @WithMockUser(username = "ana@test.com")
     @DisplayName("GET /api/alertas/reporte/excel debe fallar si el usuario no es premium")
     void getReporteExcel_usuarioNoPremium_debeFallar() throws Exception {
-        // GIVEN
         Rol rolFree = new Rol();
         rolFree.setNombre("usuario_free");
         Usuario usuarioFree = new Usuario();
@@ -178,9 +167,6 @@ class AlertaControllerTest {
         usuarioFree.setRol(rolFree);
         when(usuarioRepo.findByEmail("ana@test.com")).thenReturn(Optional.of(usuarioFree));
 
-        // WHEN + THEN: el controller lanza RuntimeException("REQUIERE_PREMIUM"),
-        // que el GlobalExceptionHandler (@RestControllerAdvice) traduce a 400
-        // Bad Request con el mensaje de la excepcion en el cuerpo JSON.
         mockMvc.perform(get("/api/alertas/reporte/excel"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("REQUIERE_PREMIUM"));
@@ -193,7 +179,6 @@ class AlertaControllerTest {
     @WithMockUser(username = "premium@test.com")
     @DisplayName("GET /api/alertas/reporte/excel debe retornar 200 si el usuario es premium")
     void getReporteExcel_usuarioPremium_debeRetornar200() throws Exception {
-        // GIVEN
         Rol rolPremium = new Rol();
         rolPremium.setNombre("usuario_premium");
         Persona persona = new Persona();
@@ -207,7 +192,6 @@ class AlertaControllerTest {
         when(alertaService.listar("premium@test.com")).thenReturn(List.of(alertaDePrueba));
         when(excelService.generar(anyList(), anyString())).thenReturn(new byte[]{1, 2, 3});
 
-        // WHEN + THEN
         mockMvc.perform(get("/api/alertas/reporte/excel"))
                 .andExpect(status().isOk());
     }
