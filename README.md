@@ -34,13 +34,14 @@ Los roles y usuarios de prueba se crean en
 
 ### Usuarios de prueba (semilla del script)
 
-Los tres usuarios comparten la misma contraseña de prueba (hash BCrypt en el script).
+Los tres usuarios comparten la misma contraseña de prueba: **`Marco1415@`**
+(almacenada como hash BCrypt en el script).
 
-| Usuario / Email | Rol | Plan | Estado |
-|---|:---:|---|---|
-| `admin@pasajeya.com.pe` | `admin` (3) | — | activo · email verificado |
-| `enrique.pdg@gmail.com` | `usuario_free` (1) | Free | activo · email verificado |
-| `renrique_prada@hotmail.com` | `usuario_premium` (2) | Premium Anual | activo · email verificado |
+| Usuario / Email | Contraseña | Rol | Plan | Estado |
+|---|---|:---:|---|---|
+| `admin@pasajeya.com.pe` | `Marco1415@` | `admin` (3) | — | activo · email verificado |
+| `enrique.pdg@gmail.com` | `Marco1415@` | `usuario_free` (1) | Free | activo · email verificado |
+| `renrique_prada@hotmail.com` | `Marco1415@` | `usuario_premium` (2) | Premium Anual | activo · email verificado |
 
 > El usuario premium tiene además una **suscripción activa** (`Premium Anual`, S/ 120.00,
 > vigente 2025-06-09 → 2026-06-09) con su pago asociado, insertada por el script.
