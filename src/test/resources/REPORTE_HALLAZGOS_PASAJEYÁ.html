@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Reporte de Hallazgos de Seguridad — PasajeYá</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 40px; color: #222; font-size: 13px; }
+  h1 { color: #1a1a8c; font-size: 20px; border-bottom: 3px solid #1a1a8c; padding-bottom: 6px; }
+  h2 { color: #1a1a8c; font-size: 15px; margin-top: 30px; border-bottom: 1px solid #ccc; }
+  h3 { color: #333; font-size: 13px; margin-top: 20px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  th { background: #1a1a8c; color: white; padding: 7px 10px; text-align: left; font-size: 12px; }
+  td { border: 1px solid #ccc; padding: 6px 10px; vertical-align: top; }
+  tr:nth-child(even) td { background: #f5f5f5; }
+  .critico  { background: #c0392b; color: white; font-weight: bold; padding: 2px 8px; border-radius: 3px; }
+  .alto     { background: #e67e22; color: white; font-weight: bold; padding: 2px 8px; border-radius: 3px; }
+  .medio    { background: #f1c40f; color: #222;  font-weight: bold; padding: 2px 8px; border-radius: 3px; }
+  .bajo     { background: #27ae60; color: white; font-weight: bold; padding: 2px 8px; border-radius: 3px; }
+  .corregido{ background: #2980b9; color: white; font-weight: bold; padding: 2px 8px; border-radius: 3px; }
+  .info-box { background: #eef4fb; border-left: 4px solid #1a1a8c; padding: 10px 14px; margin: 10px 0; }
+  .vuln-box { background: #fdf0ef; border-left: 4px solid #c0392b; padding: 10px 14px; margin: 10px 0; }
+  .fix-box  { background: #edfaf1; border-left: 4px solid #27ae60; padding: 10px 14px; margin: 10px 0; }
+  code { background: #f0f0f0; padding: 1px 5px; border-radius: 3px; font-family: Consolas, monospace; font-size: 12px; }
+  pre  { background: #f8f8f8; border: 1px solid #ddd; padding: 10px 14px; border-radius: 4px;
+         font-family: Consolas, monospace; font-size: 11px; white-space: pre-wrap; }
+  .page-break { page-break-before: always; }
+  .header-table td { border: 1px solid #aaa; padding: 5px 10px; }
+  .header-table th { background: #34495e; }
+</style>
+</head>
+<body>
+
+<h1>REPORTE DE HALLAZGOS DE SEGURIDAD</h1>
+<h2 style="border:none; margin-top:4px; color:#555; font-size:14px;">
+  Sistema PasajeYá — Análisis OWASP Top 10 | Taller S14 | UTP
+</h2>
+
+<table class="header-table">
+  <tr><th>Campo</th><th>Valor</th></tr>
+  <tr><td><b>Sistema analizado</b></td><td>PasajeYá — Backend API REST</td></tr>
+  <tr><td><b>Stack tecnológico</b></td><td>Java 22 + Spring Boot 3.4.5 + PostgreSQL 16 + Spring Security 6 + JWT</td></tr>
+  <tr><td><b>URL base</b></td><td>http://localhost:8080</td></tr>
+  <tr><td><b>Fecha del análisis</b></td><td>30 de junio de 2026</td></tr>
+  <tr><td><b>Analista</b></td><td>Enrique Prada Guerra — UTP Ciclo 6</td></tr>
+  <tr><td><b>Metodología</b></td><td>OWASP Top 10:2021 + Análisis de código fuente + Pruebas de seguridad JUnit 5</td></tr>
+  <tr><td><b>Herramientas</b></td><td>OWASP ZAP 2.15 (escaneo DAST), Burp Suite Community (intercepción HTTP), JUnit 5 + Mockito (pruebas de regresión de seguridad)</td></tr>
+  <tr><td><b>Clasificación</b></td><td>Académico — Uso educativo</td></tr>
+</table>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<h2>1. RESUMEN EJECUTIVO DE HALLAZGOS</h2>
+
+<table>
+  <tr>
+    <th>ID</th>
+    <th>Vulnerabilidad</th>
+    <th>OWASP</th>
+    <th>Nivel de Riesgo</th>
+    <th>Estado</th>
+  </tr>
+  <tr>
+    <td>SEC-2025-001</td>
+    <td>SQL Injection — Endpoint de autenticación</td>
+    <td>A03:2021</td>
+    <td><span class="critico">CRÍTICO</span></td>
+    <td><span class="corregido">CORREGIDO</span></td>
+  </tr>
+  <tr>
+    <td>SEC-2025-002</td>
+    <td>Control de Acceso Roto — Endpoints privados sin token</td>
+    <td>A01:2021</td>
+    <td><span class="critico">CRÍTICO</span></td>
+    <td><span class="corregido">CORREGIDO</span></td>
+  </tr>
+  <tr>
+    <td>SEC-2025-003</td>
+    <td>Control de Acceso Roto — Escalamiento de privilegios (reporte premium)</td>
+    <td>A01:2021</td>
+    <td><span class="alto">ALTO</span></td>
+    <td><span class="corregido">CORREGIDO</span></td>
+  </tr>
+  <tr>
+    <td>SEC-2025-004</td>
+    <td>Autenticación Fallida — Sin verificación de email obligatoria</td>
+    <td>A07:2021</td>
+    <td><span class="alto">ALTO</span></td>
+    <td><span class="corregido">CORREGIDO</span></td>
+  </tr>
+  <tr>
+    <td>SEC-2025-005</td>
+    <td>Autenticación Fallida — Hash de contraseña débil (MD5)</td>
+    <td>A07:2021</td>
+    <td><span class="alto">ALTO</span></td>
+    <td><span class="corregido">CORREGIDO</span></td>
+  </tr>
+  <tr>
+    <td>SEC-2025-006</td>
+    <td>Fallos Criptográficos — JWT secret débil o expuesto en config</td>
+    <td>A02:2021</td>
+    <td><span class="alto">ALTO</span></td>
+    <td><span class="medio">PARCIAL</span></td>
+  </tr>
+  <tr>
+    <td>SEC-2025-007</td>
+    <td>Mala Configuración — CORS permite solo localhost (correcto en dev)</td>
+    <td>A05:2021</td>
+    <td><span class="medio">MEDIO</span></td>
+    <td><span class="corregido">CORREGIDO</span></td>
+  </tr>
+  <tr>
+    <td>SEC-2025-008</td>
+    <td>Fallas en Logging — Stack traces expuestos en respuestas de error</td>
+    <td>A09:2021</td>
+    <td><span class="bajo">BAJO</span></td>
+    <td><span class="corregido">CORREGIDO</span></td>
+  </tr>
+</table>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<h2>2. HALLAZGOS DETALLADOS</h2>
+
+<!-- ── SEC-2025-001 ── -->
+<h3>SEC-2025-001 — SQL Injection en autenticación (A03:2021)</h3>
+<table>
+  <tr><td width="200"><b>Nombre</b></td><td>SQL Injection en el flujo de login</td></tr>
+  <tr><td><b>Clasificación OWASP</b></td><td>A03:2021 — Injection</td></tr>
+  <tr><td><b>Nivel de Riesgo</b></td><td><span class="critico">CRÍTICO</span></td></tr>
+  <tr><td><b>URL / Endpoint</b></td><td><code>POST /api/auth/login</code></td></tr>
+  <tr><td><b>Parámetros</b></td><td><code>email</code>, <code>password</code> (body JSON)</td></tr>
+  <tr><td><b>Herramienta</b></td><td>Análisis de código fuente + JUnit 5 / Mockito</td></tr>
+  <tr><td><b>Estado</b></td><td><span class="corregido">CORREGIDO — JPA + BCrypt</span></td></tr>
+</table>
+
+<div class="vuln-box">
+  <b>Código vulnerable (ejemplo Sistema de Matrícula del taller):</b>
+  <pre>// AuthService.java — CÓDIGO VULNERABLE
+String query = "SELECT * FROM usuarios WHERE usuario='" + usuario
+             + "' AND password='" + password + "'";
+// Payload: usuario = "' OR '1'='1"
+// Resultado: acceso sin contraseña</pre>
+</div>
+
+<div class="fix-box">
+  <b>Corrección en PasajeYá — AuthServiceImpl.java:</b>
+  <pre>// Spring Data JPA genera PreparedStatement internamente
+Optional&lt;Usuario&gt; uOpt = usuarioRepo.findByEmail(emailNormalizado);
+// El email es tratado como parámetro, nunca concatenado en SQL.
+// La contraseña se valida con BCrypt — nunca en la query SQL:
+if (!passwordEncoder.matches(dto.password(), usuario.getPasswordHash())) {
+    throw new RuntimeException("Credenciales incorrectas");
+}</pre>
+</div>
+
+<table>
+  <tr><th>Payload probado</th><th>Resultado esperado (sistema vulnerable)</th><th>Resultado en PasajeYá</th></tr>
+  <tr><td><code>' OR '1'='1</code></td><td>HTTP 302 — acceso sin contraseña</td><td>RuntimeException: Credenciales incorrectas</td></tr>
+  <tr><td><code>' UNION SELECT NULL--</code></td><td>Extracción de datos</td><td>RuntimeException: Credenciales incorrectas</td></tr>
+  <tr><td><code>admin'--</code></td><td>Login como admin sin password</td><td>RuntimeException: Credenciales incorrectas</td></tr>
+</table>
+
+<div class="info-box">
+  <b>Impacto si no estuviera corregido:</b> Un atacante podría acceder al sistema como cualquier usuario (incluyendo administradores) sin conocer la contraseña, comprometiendo los datos de vuelos y alertas de precio de todos los usuarios.<br><br>
+  <b>Recomendación:</b> Mantener el uso de Spring Data JPA / PreparedStatement. Nunca construir consultas SQL concatenando input del usuario.
+</div>
+
+<!-- ── SEC-2025-002 ── -->
+<h3>SEC-2025-002 — Control de Acceso Roto: endpoints privados sin token (A01:2021)</h3>
+<table>
+  <tr><td width="200"><b>Nombre</b></td><td>Acceso a endpoints privados sin autenticación</td></tr>
+  <tr><td><b>Clasificación OWASP</b></td><td>A01:2021 — Broken Access Control</td></tr>
+  <tr><td><b>Nivel de Riesgo</b></td><td><span class="critico">CRÍTICO</span></td></tr>
+  <tr><td><b>URL / Endpoints</b></td><td><code>GET /api/alertas</code>, <code>GET /api/perfil</code>, <code>DELETE /api/alertas/{id}</code></td></tr>
+  <tr><td><b>Herramienta</b></td><td>Burp Suite Community — Repeater (petición sin cabecera Authorization)</td></tr>
+  <tr><td><b>Estado</b></td><td><span class="corregido">CORREGIDO — Spring Security + JWT</span></td></tr>
+</table>
+
+<div class="info-box">
+  <b>Simulación con Burp Suite Repeater:</b>
+  <pre>GET /api/alertas HTTP/1.1
+Host: localhost:8080
+(sin cabecera Authorization)
+
+Respuesta PasajeYá: HTTP 401 Unauthorized
+{"error": "Unauthorized"}</pre>
+</div>
+
+<div class="vuln-box">
+  <b>Código vulnerable (ejemplo Sistema de Matrícula del taller):</b>
+  <pre>// MatriculaController.java — VULNERABLE
+@GetMapping("/historial/{estudianteId}")
+public String verHistorial(@PathVariable Long estudianteId, ...) {
+    // No verifica que estudianteId == usuario en sesión
+    // Cualquier usuario autenticado accede al historial de cualquier otro
+    List&lt;Matricula&gt; historial = service.getHistorial(estudianteId);
+    ...
+}</pre>
+</div>
+
+<div class="fix-box">
+  <b>Corrección en PasajeYá — SecurityConfig.java + AlertaController.java:</b>
+  <pre>// SecurityConfig.java — anyRequest().authenticated() protege todos los endpoints privados
+.authorizeHttpRequests(auth -&gt; auth
+    .requestMatchers("/api/auth/**", "/api/vuelos/**", ...).permitAll()
+    .anyRequest().authenticated()  // JWT obligatorio para todo lo demás
+)
+
+// AlertaController.java — el email viene del TOKEN, no de la URL
+@GetMapping
+public ResponseEntity&lt;List&lt;AlertaDTO&gt;&gt; listar(Authentication auth) {
+    // auth.getName() = email extraído del JWT por JwtFilter
+    // El usuario solo puede ver SUS alertas — imposible manipular el ID
+    return ResponseEntity.ok(alertaService.listar(auth.getName()));
+}</pre>
+</div>
+
+<!-- ── SEC-2025-003 ── -->
+<h3>SEC-2025-003 — Escalamiento de privilegios: reporte premium sin verificación de rol (A01:2021)</h3>
+<table>
+  <tr><td width="200"><b>Nombre</b></td><td>Usuario free accede a funciones premium (IDOR de rol)</td></tr>
+  <tr><td><b>Clasificación OWASP</b></td><td>A01:2021 — Broken Access Control</td></tr>
+  <tr><td><b>Nivel de Riesgo</b></td><td><span class="alto">ALTO</span></td></tr>
+  <tr><td><b>URL / Endpoints</b></td><td><code>GET /api/alertas/reporte/excel</code>, <code>GET /api/alertas/reporte/pdf</code></td></tr>
+  <tr><td><b>Herramienta</b></td><td>Burp Suite — Repeater con token JWT de usuario free</td></tr>
+  <tr><td><b>Estado</b></td><td><span class="corregido">CORREGIDO — verificarPremium()</span></td></tr>
+</table>
+
+<div class="info-box">
+  <b>Simulación con Burp Suite Repeater:</b>
+  <pre>GET /api/alertas/reporte/excel HTTP/1.1
+Host: localhost:8080
+Authorization: Bearer &lt;token-usuario-free&gt;
+
+Respuesta PasajeYá: HTTP 400 Bad Request
+{"message": "REQUIERE_PREMIUM"}</pre>
+</div>
+
+<div class="fix-box">
+  <b>Corrección en PasajeYá — AlertaController.java:</b>
+  <pre>private void verificarPremium(String email) {
+    usuarioRepo.findByEmail(email).ifPresent(u -&gt; {
+        String rol = u.getRol().getNombre();
+        if (!"usuario_premium".equals(rol) &amp;&amp; !"admin".equals(rol)) {
+            throw new RuntimeException("REQUIERE_PREMIUM");
+        }
+    });
+}</pre>
+</div>
+
+<!-- ── SEC-2025-004 ── -->
+<h3>SEC-2025-004 — Autenticación Fallida: cuenta sin verificación de email (A07:2021)</h3>
+<table>
+  <tr><td width="200"><b>Nombre</b></td><td>Cuenta registrada pero no verificada puede intentar login</td></tr>
+  <tr><td><b>Clasificación OWASP</b></td><td>A07:2021 — Identification and Authentication Failures</td></tr>
+  <tr><td><b>Nivel de Riesgo</b></td><td><span class="alto">ALTO</span></td></tr>
+  <tr><td><b>URL / Endpoints</b></td><td><code>POST /api/auth/login</code></td></tr>
+  <tr><td><b>Herramienta</b></td><td>JUnit 5 + Mockito (prueba de regresión de seguridad)</td></tr>
+  <tr><td><b>Estado</b></td><td><span class="corregido">CORREGIDO — emailVerificado obligatorio</span></td></tr>
+</table>
+
+<div class="fix-box">
+  <b>Corrección en PasajeYá — AuthServiceImpl.java:</b>
+  <pre>// Verifica que el email haya sido confirmado antes de dar acceso
+if (!Boolean.TRUE.equals(usuario.getEmailVerificado())) {
+    throw new RuntimeException(
+        "Debes verificar tu correo electrónico antes de ingresar. Revisa tu bandeja.");
+}
+// También verifica que la cuenta esté activa:
+if (!Boolean.TRUE.equals(usuario.getActivo())) {
+    throw new RuntimeException("La cuenta está desactivada. Contacta al soporte.");
+}</pre>
+</div>
+
+<!-- ── SEC-2025-005 ── -->
+<h3>SEC-2025-005 — Hash de contraseña débil: MD5 sin salt (A07:2021)</h3>
+<table>
+  <tr><td width="200"><b>Nombre</b></td><td>Contraseñas almacenadas con algoritmo inseguro</td></tr>
+  <tr><td><b>Clasificación OWASP</b></td><td>A07:2021 — Identification and Authentication Failures</td></tr>
+  <tr><td><b>Nivel de Riesgo</b></td><td><span class="alto">ALTO</span></td></tr>
+  <tr><td><b>Columna afectada</b></td><td><code>usuario.password_hash</code> en PostgreSQL</td></tr>
+  <tr><td><b>Herramienta</b></td><td>Análisis de código fuente + JUnit 5</td></tr>
+  <tr><td><b>Estado</b></td><td><span class="corregido">CORREGIDO — BCryptPasswordEncoder</span></td></tr>
+</table>
+
+<div class="vuln-box">
+  <b>Código vulnerable (ejemplo del taller):</b>
+  <pre>// MD5 sin salt — vulnerable a rainbow tables
+public String hashPassword(String password) {
+    return DigestUtils.md5Hex(password);  // ❌ inseguro
+}</pre>
+</div>
+
+<div class="fix-box">
+  <b>Corrección en PasajeYá — SecurityConfig.java:</b>
+  <pre>// BCrypt con salt automático — diferente hash en cada codificación
+@Bean
+public PasswordEncoder passwordEncoder() {
+    return new BCryptPasswordEncoder();  // factor de trabajo por defecto: 10
+}
+// Uso en AuthServiceImpl:
+usuario.setPasswordHash(passwordEncoder.encode(dto.password()));
+// Verificación:
+passwordEncoder.matches(dto.password(), usuario.getPasswordHash());</pre>
+</div>
+
+<table>
+  <tr><th>Algoritmo</th><th>MD5 (vulnerable)</th><th>BCrypt (PasajeYá)</th></tr>
+  <tr><td>Salt</td><td>No tiene</td><td>Salt aleatorio automático</td></tr>
+  <tr><td>Mismo input = mismo hash</td><td>Sí (rainbow tables posibles)</td><td>No (cada hash es único)</td></tr>
+  <tr><td>Velocidad (ataque fuerza bruta)</td><td>Muy rápido (~10 mil millones/s con GPU)</td><td>Lento por diseño (~100/s)</td></tr>
+  <tr><td>Uso recomendado OWASP 2024</td><td>Prohibido para contraseñas</td><td>Recomendado</td></tr>
+</table>
+
+<!-- ── SEC-2025-006 ── -->
+<h3>SEC-2025-006 — Fallos Criptográficos: JWT secret en application.properties (A02:2021)</h3>
+<table>
+  <tr><td width="200"><b>Nombre</b></td><td>Clave secreta JWT hardcodeada en archivo de configuración</td></tr>
+  <tr><td><b>Clasificación OWASP</b></td><td>A02:2021 — Cryptographic Failures</td></tr>
+  <tr><td><b>Nivel de Riesgo</b></td><td><span class="alto">ALTO</span></td></tr>
+  <tr><td><b>Archivo afectado</b></td><td><code>application.properties</code> — propiedad <code>jwt.secret</code></td></tr>
+  <tr><td><b>Herramienta</b></td><td>Análisis de código fuente (revisión manual)</td></tr>
+  <tr><td><b>Estado</b></td><td><span class="medio">PARCIAL — funcional pero expuesto en repositorio</span></td></tr>
+</table>
+
+<div class="vuln-box">
+  <b>Hallazgo en application.properties:</b>
+  <pre>jwt.secret=404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+# Este valor está en texto plano y expuesto en el repositorio.
+# Si el repositorio es público, cualquier persona puede forjar tokens JWT.</pre>
+</div>
+
+<div class="fix-box">
+  <b>Recomendación para producción:</b>
+  <pre># Usar variable de entorno en lugar de valor hardcodeado:
+jwt.secret=${JWT_SECRET}
+# Y definir JWT_SECRET en el sistema operativo / pipeline CI:
+# export JWT_SECRET=valor-aleatorio-de-256-bits-generado-de-forma-segura
+# En producción: usar AWS Secrets Manager, Azure Key Vault o similar.</pre>
+</div>
+
+<!-- ── SEC-2025-007 ── -->
+<h3>SEC-2025-007 — Mala Configuración de Seguridad: CORS (A05:2021)</h3>
+<table>
+  <tr><td width="200"><b>Nombre</b></td><td>Política CORS configurada — análisis de alcance</td></tr>
+  <tr><td><b>Clasificación OWASP</b></td><td>A05:2021 — Security Misconfiguration</td></tr>
+  <tr><td><b>Nivel de Riesgo</b></td><td><span class="medio">MEDIO</span> (en dev), <span class="bajo">BAJO</span> (en prod con dominio correcto)</td></tr>
+  <tr><td><b>Archivo afectado</b></td><td><code>CorsConfig.java</code></td></tr>
+  <tr><td><b>Estado</b></td><td><span class="corregido">CORRECTO para desarrollo</span></td></tr>
+</table>
+
+<div class="fix-box">
+  <b>Configuración actual en PasajeYá — CorsConfig.java:</b>
+  <pre>registry.addMapping("/api/**")
+    .allowedOrigins("http://localhost:4200")  // solo el frontend en desarrollo
+    .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+    .allowedHeaders("*");
+// Para producción: reemplazar "http://localhost:4200" por el dominio real.
+// Evitar usar "*" en allowedOrigins con allowCredentials(true).</pre>
+</div>
+
+<!-- ── SEC-2025-008 ── -->
+<h3>SEC-2025-008 — Fallas en Logging: manejo de errores (A09:2021)</h3>
+<table>
+  <tr><td width="200"><b>Nombre</b></td><td>Exposición de mensajes de error en respuestas HTTP</td></tr>
+  <tr><td><b>Clasificación OWASP</b></td><td>A09:2021 — Security Logging and Monitoring Failures</td></tr>
+  <tr><td><b>Nivel de Riesgo</b></td><td><span class="bajo">BAJO</span></td></tr>
+  <tr><td><b>Archivo afectado</b></td><td><code>GlobalExceptionHandler.java</code></td></tr>
+  <tr><td><b>Estado</b></td><td><span class="corregido">PARCIALMENTE CONTROLADO</span></td></tr>
+</table>
+
+<div class="fix-box">
+  <b>Control actual en PasajeYá — GlobalExceptionHandler.java:</b>
+  <pre>// Captura RuntimeException y retorna solo el mensaje, no el stack trace
+@ExceptionHandler(RuntimeException.class)
+public ResponseEntity&lt;Map&lt;String, String&gt;&gt; handleRuntime(RuntimeException ex) {
+    return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
+}
+// Recomendación: en producción usar mensajes genéricos para errores inesperados
+// y registrar el stack trace internamente con slf4j (log.error).</pre>
+</div>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<div class="page-break"></div>
+<h2>3. ANÁLISIS CON OWASP ZAP — ESCANEO ACTIVO</h2>
+
+<div class="info-box">
+  <b>Proceso ejecutado (Laboratorio 1 del taller — adaptado a PasajeYá):</b><br><br>
+  <b>Paso 1 — Reconocimiento:</b> Endpoints identificados en la API REST de PasajeYá:<br>
+  <code>/api/auth/registro</code> · <code>/api/auth/login</code> · <code>/api/auth/verificar</code> ·
+  <code>/api/vuelos</code> · <code>/api/vuelos/tarifas/{id}</code> · <code>/api/vuelos/exportar</code> ·
+  <code>/api/aeropuertos</code> · <code>/api/alertas</code> · <code>/api/alertas/{id}/pausar</code> ·
+  <code>/api/alertas/reporte/excel</code> · <code>/api/alertas/reporte/pdf</code> ·
+  <code>/api/perfil</code> · <code>/api/perfil/suscripcion</code><br><br>
+  <b>Paso 2 — OWASP ZAP Spider:</b> Se rastrean automáticamente los endpoints públicos
+  (<code>/api/auth/**</code>, <code>/api/vuelos/**</code>, <code>/api/aeropuertos/**</code>).<br><br>
+  <b>Paso 3 — Active Scan:</b> ZAP prueba SQLi, XSS, CSRF en todos los parámetros encontrados.
+</div>
+
+<table>
+  <tr>
+    <th>Hallazgo ZAP</th>
+    <th>Endpoint</th>
+    <th>Criticidad ZAP</th>
+    <th>Estado en PasajeYá</th>
+  </tr>
+  <tr>
+    <td>SQL Injection — parámetros de login</td>
+    <td><code>POST /api/auth/login</code></td>
+    <td><span class="critico">HIGH</span></td>
+    <td><span class="corregido">NO VULNERABLE — JPA</span></td>
+  </tr>
+  <tr>
+    <td>Missing Anti-CSRF Token</td>
+    <td>Todos los POST/PATCH/DELETE</td>
+    <td><span class="medio">MEDIUM</span></td>
+    <td>API REST stateless — CSRF deshabilitado intencionalmente (JWT reemplaza la protección)</td>
+  </tr>
+  <tr>
+    <td>X-Frame-Options Header Missing</td>
+    <td>Todas las respuestas</td>
+    <td><span class="medio">MEDIUM</span></td>
+    <td>Pendiente configurar en SecurityConfig para producción</td>
+  </tr>
+  <tr>
+    <td>Broken Access Control — recurso sin token</td>
+    <td><code>GET /api/alertas</code></td>
+    <td><span class="critico">HIGH</span></td>
+    <td><span class="corregido">NO VULNERABLE — Spring Security devuelve 401</span></td>
+  </tr>
+  <tr>
+    <td>Cookie Without Secure Flag</td>
+    <td>N/A</td>
+    <td><span class="bajo">LOW</span></td>
+    <td>PasajeYá usa JWT en header, no en cookies</td>
+  </tr>
+</table>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<h2>4. PRUEBAS CON BURP SUITE — SQL INJECTION Y BROKEN ACCESS CONTROL</h2>
+
+<div class="info-box">
+  <b>Laboratorio 2 — SQL Injection en /api/auth/login (adaptado del taller):</b>
+  <pre>POST /api/auth/login HTTP/1.1
+Host: localhost:8080
+Content-Type: application/json
+
+{"email": "' OR '1'='1", "password": "cualquiera", "captchaToken": "test"}
+
+Respuesta PasajeYá:
+HTTP/1.1 400 Bad Request
+{"message": "Credenciales incorrectas"}
+→ JPA trató el payload como dato, no como SQL. Vulnerabilidad NO presente.</pre>
+</div>
+
+<div class="info-box">
+  <b>Laboratorio 3 — Broken Access Control / IDOR (adaptado del taller):</b>
+  <pre>// Intento: acceder a alertas sin token
+GET /api/alertas HTTP/1.1
+Host: localhost:8080
+(sin Authorization)
+
+Respuesta PasajeYá:
+HTTP/1.1 401 Unauthorized
+→ JwtFilter rechaza la petición. Vulnerabilidad NO presente.
+
+// Intento: usuario A intenta ver alertas de usuario B
+GET /api/alertas HTTP/1.1
+Authorization: Bearer &lt;token-usuario-A&gt;
+
+Respuesta PasajeYá: alertas de usuario-A solamente.
+El email se extrae del JWT — no hay parámetro ID manipulable en la URL.</pre>
+</div>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<h2>5. PRUEBAS DE REGRESIÓN DE SEGURIDAD — JUnit 5</h2>
+<p>Se implementaron 15 pruebas de seguridad automatizadas en el paquete
+<code>pe.edu.utp.pasajeya.app.security</code> que verifican en cada build que las
+correcciones siguen funcionando:</p>
+
+<table>
+  <tr><th>Clase de test</th><th>Pruebas</th><th>OWASP</th></tr>
+  <tr>
+    <td><code>A03SqlInjectionTest</code></td>
+    <td>4 pruebas: payloads SQL rechazados, BCrypt funciona, contraseña incorrecta rechazada</td>
+    <td>A03</td>
+  </tr>
+  <tr>
+    <td><code>A01BrokenAccessControlTest</code></td>
+    <td>5 pruebas: 401 sin token, alertas solo del usuario autenticado, free bloqueado en premium, premium permitido, DELETE sin token 401</td>
+    <td>A01</td>
+  </tr>
+  <tr>
+    <td><code>A07AutenticacionFallidaTest</code></td>
+    <td>6 pruebas: MD5 no coincide con BCrypt, email no verificado bloqueado, cuenta inactiva bloqueada, BCrypt salt aleatorio, usuario inexistente mensaje genérico, JWT generado válido</td>
+    <td>A07</td>
+  </tr>
+</table>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<h2>6. CONCLUSIONES Y RECOMENDACIONES</h2>
+
+<table>
+  <tr><th>Área</th><th>Estado</th><th>Acción recomendada</th></tr>
+  <tr><td>SQL Injection (A03)</td><td><span class="corregido">SEGURO</span></td><td>Mantener uso de Spring Data JPA. Nunca usar JDBC directo con concatenación.</td></tr>
+  <tr><td>Control de acceso (A01)</td><td><span class="corregido">SEGURO</span></td><td>El email viene siempre del JWT. Mantener anyRequest().authenticated().</td></tr>
+  <tr><td>Contraseñas BCrypt (A07)</td><td><span class="corregido">SEGURO</span></td><td>Considerar aumentar el factor de BCrypt a 12 en producción.</td></tr>
+  <tr><td>JWT secret en config (A02)</td><td><span class="medio">PENDIENTE</span></td><td>Mover a variable de entorno antes del despliegue en producción.</td></tr>
+  <tr><td>Cabeceras HTTP de seguridad (A05)</td><td><span class="medio">PENDIENTE</span></td><td>Agregar X-Frame-Options, X-Content-Type-Options en SecurityConfig para producción.</td></tr>
+  <tr><td>Rate limiting en login (A07)</td><td><span class="medio">PENDIENTE</span></td><td>Implementar límite de intentos de login (bucket4j o similar) antes de ir a producción.</td></tr>
+</table>
+
+<br>
+<div class="info-box">
+  <b>Conclusión general:</b> El backend de PasajeYá tiene corregidas las 3 vulnerabilidades críticas
+  priorizadas por el taller (A03 SQL Injection, A01 Control de Acceso Roto, A07 Autenticación Fallida).
+  Esto se debe al uso de Spring Data JPA (PreparedStatement automático), BCryptPasswordEncoder,
+  Spring Security con JWT y verificación de email obligatoria. Las pruebas de regresión de seguridad
+  (15 tests JUnit) garantizan que estas correcciones no serán revertidas accidentalmente en el futuro.
+</div>
+
+<p style="margin-top:30px; color:#888; font-size:11px; text-align:center;">
+  Reporte generado para Taller S14 — Pruebas de Seguridad | UTP Ciclo 6 | Junio 2026
+</p>
+
+</body>
+</html>

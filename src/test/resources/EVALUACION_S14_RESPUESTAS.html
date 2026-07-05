@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Evaluación S14 — Pruebas de Seguridad | PasajeYá</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 40px; color: #222; font-size: 13px; }
+  h1 { color: #1a1a8c; font-size: 20px; border-bottom: 3px solid #1a1a8c; padding-bottom: 6px; }
+  h2 { color: #1a1a8c; font-size: 14px; margin-top: 28px; background: #eef4fb;
+       padding: 8px 12px; border-left: 4px solid #1a1a8c; }
+  .pregunta { font-weight: bold; color: #333; margin-top: 10px; }
+  .respuesta { margin-left: 20px; margin-top: 6px; line-height: 1.6; }
+  code { background: #f0f0f0; padding: 1px 5px; border-radius: 3px; font-family: Consolas, monospace; font-size: 12px; }
+  pre  { background: #f8f8f8; border: 1px solid #ddd; padding: 10px 14px; border-radius: 4px;
+         font-family: Consolas, monospace; font-size: 11px; white-space: pre-wrap; margin: 8px 0; }
+  .vuln  { background: #fdf0ef; border-left: 3px solid #c0392b; padding: 8px 12px; margin: 6px 0; }
+  .fix   { background: #edfaf1; border-left: 3px solid #27ae60; padding: 8px 12px; margin: 6px 0; }
+  table  { width: 100%; border-collapse: collapse; margin: 10px 0; }
+  th     { background: #1a1a8c; color: white; padding: 6px 10px; font-size: 12px; text-align: left; }
+  td     { border: 1px solid #ccc; padding: 6px 10px; }
+  tr:nth-child(even) td { background: #f5f5f5; }
+</style>
+</head>
+<body>
+
+<h1>Evaluación — Sección 8: Pruebas de Seguridad</h1>
+<p><b>Taller:</b> S14.s2 — CIS Pruebas de Seguridad Java &nbsp;|&nbsp;
+   <b>Proyecto:</b> PasajeYá &nbsp;|&nbsp;
+   <b>Estudiante:</b> Enrique Prada Guerra &nbsp;|&nbsp;
+   <b>Fecha:</b> 30 de junio de 2026</p>
+
+<!-- ══════════════════════════════════════════ -->
+<h2>Pregunta 1 — Escaneo Pasivo vs. Activo en OWASP ZAP</h2>
+
+<p class="pregunta">¿Cuál es la diferencia entre el escaneo pasivo y activo en OWASP ZAP? ¿Cuándo usarías cada uno?</p>
+
+<div class="respuesta">
+  <b>Escaneo Pasivo:</b><br>
+  ZAP analiza el tráfico HTTP que ya existe sin enviar ninguna petición adicional al servidor.
+  Solo observa las peticiones y respuestas que el navegador genera naturalmente mientras se navega la aplicación.
+  <ul>
+    <li>No modifica, no ataca, no genera carga extra en el servidor.</li>
+    <li>Detecta: cabeceras de seguridad faltantes (X-Frame-Options, CSP), cookies sin flag Secure/HttpOnly,
+        información sensible en respuestas (versiones de servidor), formularios sin CSRF token.</li>
+    <li>Cuándo usarlo: siempre, como primera etapa. Es seguro ejecutarlo incluso en ambientes de producción
+        ya que no genera tráfico adicional.</li>
+  </ul>
+
+  <b>Escaneo Activo:</b><br>
+  ZAP envía payloads maliciosos deliberados a todos los parámetros encontrados (formularios, URLs, headers)
+  para descubrir vulnerabilidades reales.
+  <ul>
+    <li>Genera muchas peticiones al servidor. Puede causar errores, registros falsos en BD, alertas de seguridad.</li>
+    <li>Detecta: SQL Injection, XSS (Cross-Site Scripting), Command Injection, Path Traversal, XXE, SSRF.</li>
+    <li>Cuándo usarlo: en ambientes de testing/staging, nunca en producción sin autorización explícita.
+        Siempre después del escaneo pasivo.</li>
+  </ul>
+
+  <table>
+    <tr><th>Característica</th><th>Pasivo</th><th>Activo</th></tr>
+    <tr><td>Envía payloads</td><td>No</td><td>Sí (SQLi, XSS, etc.)</td></tr>
+    <tr><td>Seguro en producción</td><td>Sí</td><td>No</td></tr>
+    <tr><td>Detecta SQLi</td><td>No</td><td>Sí</td></tr>
+    <tr><td>Detecta cabeceras faltantes</td><td>Sí</td><td>Sí</td></tr>
+    <tr><td>Fase recomendada</td><td>Reconocimiento</td><td>Explotación controlada</td></tr>
+  </table>
+
+  <b>Aplicado a PasajeYá:</b> El escaneo pasivo detectaría que falta la cabecera X-Frame-Options en las
+  respuestas de la API. El escaneo activo verificaría que los payloads SQLi en <code>POST /api/auth/login</code>
+  son rechazados correctamente por Spring Data JPA.
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<h2>Pregunta 2 — Ataque IDOR y su relación con A01</h2>
+
+<p class="pregunta">¿Qué es un ataque IDOR? ¿Cómo se relaciona con la categoría A01:2021 del OWASP Top 10?</p>
+
+<div class="respuesta">
+  <b>IDOR (Insecure Direct Object Reference — Referencia Directa Insegura a Objetos):</b><br>
+  Es un tipo de vulnerabilidad donde una aplicación expone identificadores internos de objetos
+  (IDs de base de datos, nombres de archivo, etc.) en URLs o parámetros, y un atacante puede
+  manipularlos para acceder a recursos que no le pertenecen.
+
+  <br><br><b>Ejemplo clásico:</b>
+  <pre>// URL normal del usuario A:
+GET /api/historial/42   → muestra su historial (id=42)
+
+// El atacante cambia el número:
+GET /api/historial/43   → si no hay validación, muestra el historial del usuario B</pre>
+
+  <b>Relación con A01:2021 (Broken Access Control):</b><br>
+  IDOR es una de las manifestaciones más comunes de A01. La raíz del problema es la misma:
+  la aplicación no verifica que el recurso solicitado pertenezca al usuario que hace la petición.
+  A01 es la categoría más amplia que cubre todos los fallos de control de acceso; IDOR es el
+  mecanismo específico de ataque que los explota.
+
+  <br><br><b>Cómo PasajeYá previene IDOR:</b><br>
+  En lugar de exponer IDs en la URL, el email del usuario siempre viene del JWT:
+  <pre>// AlertaController.java — el email viene del TOKEN, no de la URL
+@GetMapping
+public ResponseEntity&lt;List&lt;AlertaDTO&gt;&gt; listar(Authentication auth) {
+    return ResponseEntity.ok(alertaService.listar(auth.getName())); // email del JWT
+}
+
+// NO existe un endpoint como:
+// GET /api/alertas/{usuarioId}   ← esto sería vulnerable a IDOR</pre>
+
+  Un atacante no puede cambiar su email en el JWT sin invalidar la firma HMAC-SHA,
+  por lo que es imposible suplantar a otro usuario.
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<h2>Pregunta 3 — Por qué MD5 no debe usarse para contraseñas en 2025</h2>
+
+<p class="pregunta">¿Por qué MD5 no debe usarse para hashear contraseñas en 2025? ¿Cuál es la alternativa recomendada en Java?</p>
+
+<div class="respuesta">
+  <b>Razones por las que MD5 es inseguro para contraseñas:</b>
+  <ol>
+    <li><b>Sin salt:</b> MD5 es determinista — la misma entrada produce siempre el mismo hash.
+        Esto permite <i>rainbow tables</i>: tablas precomputadas que mapean miles de millones de contraseñas
+        comunes a sus hashes MD5. Basta con buscar el hash en la tabla para recuperar la contraseña.</li>
+    <li><b>Velocidad excesiva:</b> MD5 fue diseñado para ser rápido. Con una GPU moderna se pueden calcular
+        más de 10,000 millones de hashes MD5 por segundo. Un atacante con la BD puede hacer fuerza bruta
+        de contraseñas de 8 caracteres en minutos.</li>
+    <li><b>Colisiones conocidas:</b> MD5 tiene colisiones documentadas desde 2004 — dos entradas distintas
+        producen el mismo hash. Aunque menos relevante para contraseñas, confirma que el algoritmo es criptográficamente débil.</li>
+    <li><b>No es un KDF:</b> MD5 es una función de hash de propósito general, no una Key Derivation Function
+        (KDF). Las KDF están diseñadas específicamente para derivar claves/hashes de contraseñas con
+        mecanismos de lentitud ajustable.</li>
+  </ol>
+
+  <b>Alternativa recomendada en Java — BCrypt:</b>
+  <pre>// Dependencia (spring-boot-starter-security la incluye):
+// org.springframework.security:spring-security-crypto
+
+// PasajeYá — SecurityConfig.java:
+@Bean
+public PasswordEncoder passwordEncoder() {
+    return new BCryptPasswordEncoder();  // factor de trabajo por defecto: 10
+}
+
+// Ventajas de BCrypt:
+// 1. Salt automático — cada hash es único, rainbow tables inútiles
+// 2. Factor de trabajo configurable — se puede hacer más lento en el futuro
+// 3. ~100 operaciones/segundo vs ~10,000,000,000 de MD5 (con la misma GPU)
+// 4. OWASP recomienda BCrypt, Argon2id o PBKDF2 para contraseñas</pre>
+
+  <table>
+    <tr><th>Algoritmo</th><th>Salt</th><th>Velocidad (GPU)</th><th>OWASP 2024</th></tr>
+    <tr><td>MD5</td><td>No</td><td>~10 mil millones/s</td><td>Prohibido para contraseñas</td></tr>
+    <tr><td>SHA-256</td><td>No (solo)</td><td>~3 mil millones/s</td><td>No recomendado solo</td></tr>
+    <tr><td>BCrypt</td><td>Sí (automático)</td><td>~100/s</td><td>Recomendado</td></tr>
+    <tr><td>Argon2id</td><td>Sí (automático)</td><td>~10/s</td><td>Más recomendado (2024)</td></tr>
+  </table>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<h2>Pregunta 4 (Práctica) — Identificar vulnerabilidad y escribir versión corregida</h2>
+
+<p class="pregunta">Dado el siguiente código del taller, identifica la(s) vulnerabilidad(es) y escribe la versión corregida.</p>
+
+<div class="vuln">
+  <b>Código vulnerable (Sistema de Matrícula del taller):</b>
+  <pre>// AuthServlet.java — CÓDIGO VULNERABLE
+@Override
+protected void doPost(HttpServletRequest req, HttpServletResponse resp) {
+    String usuario  = req.getParameter("usuario");
+    String password = req.getParameter("password");
+
+    // A03 — SQL Injection: concatenación directa de input del usuario
+    String sql = "SELECT * FROM usuarios WHERE usuario='" + usuario
+               + "' AND password='" + password + "'";
+
+    try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+         Statement stmt  = conn.createStatement();
+         ResultSet rs    = stmt.executeQuery(sql)) {
+
+        if (rs.next()) {
+            // A07 — Sin verificación de email ni cuenta activa
+            // A07 — MD5 sin salt ya fue aplicado antes de llegar aquí
+            req.getSession().setAttribute("usuario", usuario);
+            resp.sendRedirect("dashboard.jsp");
+        } else {
+            resp.sendRedirect("login.jsp?error=1");
+        }
+    }
+}</pre>
+</div>
+
+<div class="fix">
+  <b>Versión corregida aplicando los mismos principios que PasajeYá:</b>
+  <pre>// AuthServlet.java — CÓDIGO CORREGIDO
+@Override
+protected void doPost(HttpServletRequest req, HttpServletResponse resp) {
+    String email    = req.getParameter("email");
+    String password = req.getParameter("password");
+
+    // A03 CORREGIDO: PreparedStatement — el input nunca se concatena al SQL
+    String sql = "SELECT id, email, password_hash, email_verificado, activo "
+               + "FROM usuarios WHERE email = ?";
+
+    try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+         PreparedStatement ps = conn.prepareStatement(sql)) {
+
+        ps.setString(1, email);  // ← parámetro seguro, no concatenación
+        ResultSet rs = ps.executeQuery();
+
+        if (rs.next()) {
+            String hashBD = rs.getString("password_hash");
+            boolean emailVerificado = rs.getBoolean("email_verificado");
+            boolean activo = rs.getBoolean("activo");
+
+            // A07 CORREGIDO: verificar con BCrypt (no comparar MD5)
+            BCrypt.Result result = BCrypt.verifyer().verify(
+                password.toCharArray(), hashBD
+            );
+
+            // A07 CORREGIDO: verificar email y estado de cuenta
+            if (result.verified && emailVerificado && activo) {
+                req.getSession().setAttribute("usuario", email);
+                resp.sendRedirect("dashboard.jsp");
+            } else {
+                // Mismo mensaje para todos los casos — no expone si el email existe
+                resp.sendRedirect("login.jsp?error=credenciales_incorrectas");
+            }
+        } else {
+            resp.sendRedirect("login.jsp?error=credenciales_incorrectas");
+        }
+    }
+}</pre>
+</div>
+
+<b>Vulnerabilidades identificadas y corregidas:</b>
+<table>
+  <tr><th>Línea / Concepto</th><th>Vulnerabilidad (OWASP)</th><th>Corrección</th></tr>
+  <tr><td>Concatenación <code>WHERE usuario='" + usuario + "'</code></td><td>A03 — SQL Injection</td><td>PreparedStatement con <code>?</code></td></tr>
+  <tr><td>Comparación de contraseña en SQL</td><td>A03 — SQL Injection</td><td>Verificar hash fuera de SQL con BCrypt</td></tr>
+  <tr><td>Sin verificación de email</td><td>A07 — Auth Failure</td><td>Verificar <code>email_verificado = true</code></td></tr>
+  <tr><td>Sin verificación de cuenta activa</td><td>A07 — Auth Failure</td><td>Verificar <code>activo = true</code></td></tr>
+  <tr><td>Statement genérico (no PreparedStatement)</td><td>A03 — SQL Injection</td><td>PreparedStatement siempre</td></tr>
+</table>
+
+<!-- ══════════════════════════════════════════ -->
+<h2>Pregunta 5 — Las 3 herramientas y su fase en Penetration Testing</h2>
+
+<p class="pregunta">Describe las 3 herramientas usadas en el taller y en qué fase del proceso de penetration testing se usa cada una.</p>
+
+<div class="respuesta">
+
+  <b>Fases del Penetration Testing (metodología estándar):</b>
+  <ol>
+    <li>Reconocimiento (Reconnaissance)</li>
+    <li>Escaneo y enumeración (Scanning & Enumeration)</li>
+    <li>Explotación (Exploitation)</li>
+    <li>Post-explotación y reporte (Post-Exploitation & Reporting)</li>
+  </ol>
+
+  <table>
+    <tr>
+      <th>Herramienta</th>
+      <th>Tipo</th>
+      <th>Fase principal</th>
+      <th>Qué hace</th>
+      <th>Aplicación en PasajeYá</th>
+    </tr>
+    <tr>
+      <td><b>OWASP ZAP 2.15</b><br>(Zed Attack Proxy)</td>
+      <td>DAST<br>(Dynamic Application Security Testing)</td>
+      <td>Fase 2 — Escaneo<br>+ Fase 3 — Explotación</td>
+      <td>
+        Actúa como proxy entre el navegador y la aplicación.
+        <br>• Escaneo pasivo: detecta cabeceras faltantes, cookies inseguras.
+        <br>• Spider: mapea automáticamente los endpoints de la API.
+        <br>• Active Scan: lanza payloads SQLi, XSS, CSRF en todos los parámetros.
+        <br>• Genera reporte HTML/XML con hallazgos clasificados.
+      </td>
+      <td>
+        Escanear <code>http://localhost:8080/api</code>.
+        <br>Detectaría: X-Frame-Options faltante.
+        <br>Confirmaría: SQLi bloqueado, 401 sin token.
+      </td>
+    </tr>
+    <tr>
+      <td><b>Burp Suite Community</b></td>
+      <td>Proxy HTTP<br>+ Intruder</td>
+      <td>Fase 2 — Escaneo<br>+ Fase 3 — Explotación manual</td>
+      <td>
+        Intercepta y modifica peticiones HTTP en tiempo real.
+        <br>• Proxy: captura peticiones del navegador.
+        <br>• Repeater: reenvía peticiones modificadas manualmente (prueba IDOR, SQLi).
+        <br>• Intruder: automatiza pruebas con listas de payloads (fuerza bruta, fuzzing).
+        <br>• Decoder: decodifica/codifica Base64, URL encoding, JWT.
+      </td>
+      <td>
+        Prueba IDOR: cambiar email en petición a <code>/api/alertas</code>.
+        <br>Prueba SQLi: enviar <code>' OR '1'='1</code> en campo email del login.
+        <br>Prueba sin token: eliminar header Authorization.
+      </td>
+    </tr>
+    <tr>
+      <td><b>Metasploit Framework</b></td>
+      <td>Framework de explotación</td>
+      <td>Fase 3 — Explotación<br>+ Fase 4 — Post-explotación</td>
+      <td>
+        Framework para desarrollar y ejecutar exploits contra sistemas reales.
+        <br>• Módulos auxiliares: escanear versiones de servidores (Tomcat, Apache).
+        <br>• Módulos de explotación: aprovechar CVEs conocidos para ganar acceso.
+        <br>• Meterpreter: shell post-explotación con comandos especializados.
+        <br>• En el taller: <code>auxiliary/scanner/http/tomcat_mgr_login</code> para fuerza bruta.
+      </td>
+      <td>
+        Detectar versión de Spring Boot expuesta en headers.
+        <br>Verificar si <code>/actuator</code> está expuesto (no debe estar).
+        <br>Fuerza bruta contra <code>/api/auth/login</code> (demuestra necesidad de rate limiting).
+      </td>
+    </tr>
+  </table>
+
+  <b>Flujo del taller adaptado a PasajeYá:</b>
+  <pre>1. ZAP Spider → mapea /api/auth/**, /api/vuelos/**, /api/alertas/**
+2. ZAP Active Scan → prueba SQLi en /api/auth/login → rechazado (PreparedStatement JPA)
+3. Burp Repeater → prueba IDOR sin token en /api/alertas → rechazado (401)
+4. Burp Repeater → prueba escalamiento rol free→premium en reporte Excel → rechazado
+5. Metasploit → verifica versión Spring Boot en headers → implementar cabeceras de seguridad
+6. JUnit 5 → pruebas de regresión de seguridad automatizadas (15 tests)</pre>
+</div>
+
+<p style="margin-top:30px; color:#888; font-size:11px; text-align:center;">
+  Evaluación S14 — Pruebas de Seguridad | PasajeYá | UTP Ciclo 6 | Junio 2026
+</p>
+
+</body>
+</html>

@@ -195,4 +195,28 @@
     </plugins>
   </build>
 
+
+  <profiles>
+    <profile>
+      <id>seguridad</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <configuration>
+              <includes>
+                <include>**/security/A01*.java</include>
+                <include>**/security/A03*.java</include>
+                <include>**/security/A07*.java</include>
+                <include>**/security/CodigoVulnerable*.java</include>
+              </includes>
+              <reportNameSuffix>seguridad</reportNameSuffix>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+
 </project>
