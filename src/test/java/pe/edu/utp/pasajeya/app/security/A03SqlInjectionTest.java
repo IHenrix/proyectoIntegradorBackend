@@ -119,7 +119,7 @@ class A03SqlInjectionTest {
         usuario.setPersona(persona);
 
         when(usuarioRepo.findByEmail("ana@test.com")).thenReturn(Optional.of(usuario));
-        when(jwtUtil.generarToken("ana@test.com")).thenReturn("jwt-token-valido");
+        when(jwtUtil.generarToken("ana@test.com", "usuario_free")).thenReturn("jwt-token-valido");
 
         LoginRequestDTO request = new LoginRequestDTO("ana@test.com", "Password123", "captcha");
         LoginResponseDTO respuesta = authService.login(request);

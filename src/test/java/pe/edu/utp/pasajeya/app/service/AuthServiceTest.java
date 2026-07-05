@@ -152,7 +152,7 @@ class AuthServiceTest {
         when(recaptchaService.verificar("captcha-valido")).thenReturn(true);
         when(usuarioRepo.findByEmail("ana@test.com")).thenReturn(Optional.of(usuario));
         when(passwordEncoder.matches("password123", "hash-encriptado")).thenReturn(true);
-        when(jwtUtil.generarToken("ana@test.com")).thenReturn("jwt-token-generado");
+        when(jwtUtil.generarToken("ana@test.com", "usuario_free")).thenReturn("jwt-token-generado");
 
         LoginResponseDTO resultado = authService.login(loginValido);
 

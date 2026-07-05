@@ -104,4 +104,10 @@ public interface SuscripcionRepository extends JpaRepository<Suscripcion, Intege
           )
         """)
     int degradarSinSuscripcionVigente(@Param("hoy") LocalDate hoy);
+
+    /** Conteo por estado ('activa'|'vencida'|'cancelada'), para el dashboard admin. */
+    long countByEstado(String estado);
+
+    /** Listado global de todas las suscripciones del sistema, para el panel admin. */
+    List<Suscripcion> findAllByOrderByFechaInicioDesc();
 }

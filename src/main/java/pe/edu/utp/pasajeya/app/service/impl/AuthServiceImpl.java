@@ -160,7 +160,7 @@ public class AuthServiceImpl implements AuthService {
             throw new RuntimeException("Debes verificar tu correo electrónico antes de ingresar. Revisa tu bandeja de entrada.");
         }
 
-        String token = jwtUtil.generarToken(emailNormalizado);
+        String token = jwtUtil.generarToken(emailNormalizado, usuario.getRol().getNombre());
         log.info("Login exitoso: {}", emailNormalizado);
 
         return new LoginResponseDTO(token, usuario.getPersona().getNombre(), usuario.getRol().getNombre());

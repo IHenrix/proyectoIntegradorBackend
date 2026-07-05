@@ -185,13 +185,13 @@ class A07AutenticacionFallidaTest {
         usuario.setPersona(persona);
 
         when(usuarioRepo.findByEmail("ana@test.com")).thenReturn(Optional.of(usuario));
-        when(jwtUtil.generarToken("ana@test.com")).thenReturn("jwt-firmado-seguro");
+        when(jwtUtil.generarToken("ana@test.com", "usuario_free")).thenReturn("jwt-firmado-seguro");
 
         LoginRequestDTO request = new LoginRequestDTO("ana@test.com", "Pass1234", "captcha");
         var respuesta = authService.login(request);
 
         assertThat(respuesta.token()).isEqualTo("jwt-firmado-seguro");
-        verify(jwtUtil, times(1)).generarToken("ana@test.com");
+        verify(jwtUtil, times(1)).generarToken("ana@test.com", "usuario_free");
     }
 
     private String toMd5Hex(String input) {
