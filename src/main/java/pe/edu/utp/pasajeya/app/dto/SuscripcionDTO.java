@@ -11,5 +11,6 @@ public record SuscripcionDTO(
         String     fechaFin,
         String     estado,
         String     metodoPago,
-        String     refInterna     // número visible al usuario, ej: "748291"
+        String     refInterna,    // número visible al usuario, ej: "748291"
+        Boolean    autoRenovar    // true solo si el método fue tarjeta
 ) {}

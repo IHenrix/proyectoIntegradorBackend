@@ -1,6 +1,7 @@
 package pe.edu.utp.pasajeya.app.controller;
 
 import pe.edu.utp.pasajeya.app.dto.ActualizarPerfilRequestDTO;
+import pe.edu.utp.pasajeya.app.dto.PagoRequestDTO;
 import pe.edu.utp.pasajeya.app.dto.PerfilDTO;
 import pe.edu.utp.pasajeya.app.dto.SuscripcionDTO;
 import pe.edu.utp.pasajeya.app.model.Persona;
@@ -12,7 +13,9 @@ import pe.edu.utp.pasajeya.app.repository.SuscripcionRepository;
 import pe.edu.utp.pasajeya.app.repository.TipoDocumentoRepository;
 import pe.edu.utp.pasajeya.app.repository.UsuarioRepository;
 import pe.edu.utp.pasajeya.app.security.JwtUtil;
+import pe.edu.utp.pasajeya.app.service.SuscripcionService;
 import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -28,6 +31,7 @@ public class PerfilController {
     private final TipoDocumentoRepository tipoDocRepo;
     private final SuscripcionRepository   suscripcionRepo;
     private final PagoRepository          pagoRepo;
+    private final SuscripcionService      suscripcionService;
     private final JwtUtil                 jwtUtil;
     private final PasswordEncoder         passwordEncoder;
 
@@ -36,15 +40,17 @@ public class PerfilController {
                             TipoDocumentoRepository tipoDocRepo,
                             SuscripcionRepository suscripcionRepo,
                             PagoRepository pagoRepo,
+                            SuscripcionService suscripcionService,
                             JwtUtil jwtUtil,
                             PasswordEncoder passwordEncoder) {
-        this.usuarioRepo     = usuarioRepo;
-        this.personaRepo     = personaRepo;
-        this.tipoDocRepo     = tipoDocRepo;
-        this.suscripcionRepo = suscripcionRepo;
-        this.pagoRepo        = pagoRepo;
-        this.jwtUtil         = jwtUtil;
-        this.passwordEncoder = passwordEncoder;
+        this.usuarioRepo       = usuarioRepo;
+        this.personaRepo       = personaRepo;
+        this.tipoDocRepo       = tipoDocRepo;
+        this.suscripcionRepo   = suscripcionRepo;
+        this.pagoRepo          = pagoRepo;
+        this.suscripcionService = suscripcionService;
+        this.jwtUtil           = jwtUtil;
+        this.passwordEncoder   = passwordEncoder;
     }
 
     /** GET /api/perfil */
@@ -64,8 +70,7 @@ public class PerfilController {
             @RequestHeader("Authorization") String authHeader) {
 
         Usuario u   = resolverUsuario(authHeader);
-        LocalDate hoy = LocalDate.now();
-        suscripcionRepo.expirarVencidas(hoy);
+        expirarYDegradar();
 
         java.util.List<SuscripcionDTO> lista = suscripcionRepo
                 .findHistorial(u.getPersona().getId())
@@ -84,7 +89,8 @@ public class PerfilController {
                             s.getFechaFin().toString(),
                             s.getEstado(),
                             s.getMetodoPago(),
-                            ref
+                            ref,
+                            Boolean.TRUE.equals(s.getAutoRenovar())
                     );
                 })
                 .toList();
@@ -105,9 +111,7 @@ public class PerfilController {
 
         Usuario u   = resolverUsuario(authHeader);
         LocalDate hoy = LocalDate.now();
-
-        // Expirar suscripciones vencidas de este usuario (lazy — sin scheduler)
-        suscripcionRepo.expirarVencidas(hoy);
+        expirarYDegradar();
 
         return suscripcionRepo
                 .findVigente(u.getPersona().getId(), hoy)
@@ -128,10 +132,37 @@ public class PerfilController {
                             s.getFechaFin().toString(),
                             s.getEstado(),
                             s.getMetodoPago(),
-                            ref
+                            ref,
+                            Boolean.TRUE.equals(s.getAutoRenovar())
                     ));
                 })
                 .orElse(ResponseEntity.noContent().build());
+    }
+
+    /**
+     * POST /api/perfil/suscripcion — procesa un pago (simulado, sin pasarela
+     * real) y activa la suscripción premium. Persiste en pago + suscripcion
+     * y sube Usuario.rol a usuario_premium en una sola transacción.
+     */
+    @PostMapping("/suscripcion")
+    public ResponseEntity<SuscripcionDTO> pagar(
+            @RequestHeader("Authorization") String authHeader,
+            @RequestBody @Valid PagoRequestDTO request) {
+
+        Usuario u = resolverUsuario(authHeader);
+        return ResponseEntity.ok(suscripcionService.pagar(u.getEmail(), request));
+    }
+
+    /**
+     * PATCH /api/perfil/suscripcion/cancelar — cancela la suscripción activa.
+     * El usuario conserva premium hasta fecha_fin (el rol se degrada luego
+     * mediante el lazy expiry, no al instante).
+     */
+    @PatchMapping("/suscripcion/cancelar")
+    public ResponseEntity<Void> cancelar(@RequestHeader("Authorization") String authHeader) {
+        Usuario u = resolverUsuario(authHeader);
+        suscripcionService.cancelar(u.getEmail());
+        return ResponseEntity.noContent().build();
     }
 
     /** PUT /api/perfil */
@@ -216,5 +247,16 @@ public class PerfilController {
         String email = jwtUtil.extraerEmail(token);
         return usuarioRepo.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+    }
+
+    /**
+     * Lazy expiry: marca vencidas las suscripciones cuya fecha_fin ya pasó y
+     * degrada a usuario_free a quien ya no tenga ninguna vigente. Se llama en
+     * cada consulta de suscripción — no hay scheduler en el proyecto.
+     */
+    private void expirarYDegradar() {
+        LocalDate hoy = LocalDate.now();
+        suscripcionRepo.expirarVencidas(hoy);
+        suscripcionRepo.degradarSinSuscripcionVigente(hoy);
     }
 }

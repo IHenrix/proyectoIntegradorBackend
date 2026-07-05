@@ -9,6 +9,7 @@ import pe.edu.utp.pasajeya.app.repository.TipoDocumentoRepository;
 import pe.edu.utp.pasajeya.app.repository.UsuarioRepository;
 import pe.edu.utp.pasajeya.app.security.JwtFilter;
 import pe.edu.utp.pasajeya.app.security.JwtUtil;
+import pe.edu.utp.pasajeya.app.service.SuscripcionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.*;
@@ -51,6 +52,8 @@ class PerfilControllerTest {
     private SuscripcionRepository suscripcionRepo;
     @MockitoBean
     private PagoRepository pagoRepo;
+    @MockitoBean
+    private SuscripcionService suscripcionService;
     @MockitoBean
     private JwtUtil jwtUtil;
     @MockitoBean

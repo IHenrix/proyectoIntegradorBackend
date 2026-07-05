@@ -117,7 +117,8 @@ CREATE TABLE suscripcion (
   fecha_fin            DATE NOT NULL,
   estado               VARCHAR(20) NOT NULL DEFAULT 'activa'
                          CHECK (estado IN ('activa','vencida','cancelada')),
-  metodo_pago          VARCHAR(50)
+  metodo_pago          VARCHAR(50),
+  auto_renovar         BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 CREATE TABLE aerolinea (

@@ -42,4 +42,7 @@ public class Suscripcion {
 
     @Column(name = "metodo_pago")
     private String metodoPago;
+
+    @Column(name = "auto_renovar")
+    private Boolean autoRenovar;
 }
