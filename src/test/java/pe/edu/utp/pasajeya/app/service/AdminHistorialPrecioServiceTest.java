@@ -1,6 +1,7 @@
 package pe.edu.utp.pasajeya.app.service;
 
 import pe.edu.utp.pasajeya.app.dto.AdminHistorialPrecioDTO;
+import pe.edu.utp.pasajeya.app.dto.PaginaDTO;
 import pe.edu.utp.pasajeya.app.model.Aerolinea;
 import pe.edu.utp.pasajeya.app.model.HistorialPrecio;
 import pe.edu.utp.pasajeya.app.model.Vuelo;
@@ -13,6 +14,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Limit;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -20,6 +23,8 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -95,5 +100,49 @@ class AdminHistorialPrecioServiceTest {
         historialService.buscar(null, "LIM", "CUZ", null, null);
 
         verify(historialRepo).buscarConFiltros(null, "LIM", "CUZ", null, null, Limit.of(1000));
+    }
+
+    // ── buscarPaginado() ─────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("buscarPaginado() mapea y envuelve el resultado en PaginaDTO")
+    void buscarPaginado_mapeaYEnvuelveEnPagina() {
+        Aerolinea latam = new Aerolinea();
+        latam.setNombre("LATAM Airlines Peru");
+
+        Vuelo vuelo = new Vuelo();
+        vuelo.setId(5);
+        vuelo.setAerolinea(latam);
+        vuelo.setOrigen("LIM");
+        vuelo.setDestino("CUZ");
+
+        HistorialPrecio hp = new HistorialPrecio();
+        hp.setVuelo(vuelo);
+        hp.setPrecio(new BigDecimal("199.90"));
+        hp.setTipoTarifa("basica");
+        hp.setFechaCaptura(LocalDateTime.of(2026, 6, 1, 10, 0));
+
+        var pageable = PageRequest.of(0, 10);
+        when(historialRepo.buscarConFiltrosPaginado(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any()))
+                .thenReturn(new PageImpl<>(List.of(hp), pageable, 1));
+
+        PaginaDTO<AdminHistorialPrecioDTO> resultado =
+                historialService.buscarPaginado(null, null, null, null, null, null, 0, 10);
+
+        assertThat(resultado.contenido()).hasSize(1);
+        assertThat(resultado.totalElementos()).isEqualTo(1);
+        assertThat(resultado.contenido().get(0).aerolinea()).isEqualTo("LATAM Airlines Peru");
+    }
+
+    @Test
+    @DisplayName("buscarPaginado() con búsqueda pasa el texto normalizado al repositorio")
+    void buscarPaginado_conBusqueda_pasaTextoAlRepo() {
+        var pageable = PageRequest.of(0, 10);
+        when(historialRepo.buscarConFiltrosPaginado(isNull(), isNull(), isNull(), isNull(), isNull(), eq("latam"), any()))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        historialService.buscarPaginado(null, null, null, null, null, "latam", 0, 10);
+
+        verify(historialRepo).buscarConFiltrosPaginado(isNull(), isNull(), isNull(), isNull(), isNull(), eq("latam"), any());
     }
 }

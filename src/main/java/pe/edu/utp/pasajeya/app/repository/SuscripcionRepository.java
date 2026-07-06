@@ -1,5 +1,7 @@
 package pe.edu.utp.pasajeya.app.repository;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -110,4 +112,26 @@ public interface SuscripcionRepository extends JpaRepository<Suscripcion, Intege
 
     /** Listado global de todas las suscripciones del sistema, para el panel admin. */
     List<Suscripcion> findAllByOrderByFechaInicioDesc();
+
+    /**
+     * Listado paginado para el panel admin, con búsqueda opcional por email o
+     * nombre del usuario dueño. Suscripcion no tiene FK directa a Usuario
+     * (solo a Persona), así que la búsqueda usa una subquery EXISTS contra
+     * Usuario filtrando por persona.id — mismo criterio de dueño que ya usa
+     * AdminSuscripcionServiceImpl vía UsuarioRepository.findByPersonaId.
+     */
+    @Query("""
+        SELECT s FROM Suscripcion s
+        WHERE (:q IS NULL OR :q = '' OR EXISTS (
+            SELECT 1 FROM Usuario u
+            WHERE u.persona.id = s.persona.id
+              AND (LOWER(u.email) LIKE LOWER(CONCAT('%', :q, '%'))
+                   OR LOWER(u.persona.nombre) LIKE LOWER(CONCAT('%', :q, '%')))
+        ))
+        ORDER BY s.fechaInicio DESC
+        """)
+    Page<Suscripcion> buscarPaginado(@Param("q") String q, Pageable pageable);
+
+    /** Cantidad de suscripciones cuya fecha de inicio cae dentro del rango, para el reporte comparativo. */
+    long countByFechaInicioBetween(LocalDate desde, LocalDate hasta);
 }

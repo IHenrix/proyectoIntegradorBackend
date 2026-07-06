@@ -1,7 +1,9 @@
 package pe.edu.utp.pasajeya.app.service.impl;
 
+import org.apache.commons.lang3.StringUtils;
 import pe.edu.utp.pasajeya.app.dto.AdminPagoDTO;
 import pe.edu.utp.pasajeya.app.dto.AdminSuscripcionDTO;
+import pe.edu.utp.pasajeya.app.dto.PaginaDTO;
 import pe.edu.utp.pasajeya.app.model.Pago;
 import pe.edu.utp.pasajeya.app.model.Persona;
 import pe.edu.utp.pasajeya.app.model.Suscripcion;
@@ -10,6 +12,7 @@ import pe.edu.utp.pasajeya.app.repository.PagoRepository;
 import pe.edu.utp.pasajeya.app.repository.SuscripcionRepository;
 import pe.edu.utp.pasajeya.app.repository.UsuarioRepository;
 import pe.edu.utp.pasajeya.app.service.AdminSuscripcionService;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,7 +36,19 @@ public class AdminSuscripcionServiceImpl implements AdminSuscripcionService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<AdminSuscripcionDTO> listarSuscripciones() {
+    public PaginaDTO<AdminSuscripcionDTO> listarSuscripcionesPaginado(String q, int pagina, int tamano) {
+        var pageable = PageRequest.of(pagina, tamano);
+        String qNormalizado = StringUtils.trimToNull(q);
+        // findByPersonaId por fila sigue siendo aceptable aquí: con paginación
+        // de 10 filas el "N+1" documentado deja de ser un problema real
+        // (máximo 10 queries extra por página, no miles como con findAll()).
+        var page = suscripcionRepo.buscarPaginado(qNormalizado, pageable).map(this::toSuscripcionDto);
+        return PaginaDTO.from(page);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AdminSuscripcionDTO> listarSuscripcionesTodas() {
         return suscripcionRepo.findAllByOrderByFechaInicioDesc().stream()
                 .map(this::toSuscripcionDto)
                 .toList();

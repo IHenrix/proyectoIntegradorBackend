@@ -6,6 +6,7 @@ import pe.edu.utp.pasajeya.app.repository.HistorialPrecioRepository;
 import pe.edu.utp.pasajeya.app.repository.TarifaRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +21,13 @@ public class HistorialPrecioJobService {
     private final TarifaRepository tarifaRepo;
     private final HistorialPrecioRepository historialRepo;
     private final AlertaService alertaService;
+
+    @Value("${app.historial.capture-rate-ms:21600000}")
+    private long tasaCapturaMs;
+
+    // Estado en memoria (no persistido): se resetea si el backend reinicia,
+    // aceptable para un panel puramente informativo del estado del job.
+    private volatile LocalDateTime ultimaEjecucion;
 
     public HistorialPrecioJobService(TarifaRepository tarifaRepo,
                                      HistorialPrecioRepository historialRepo,
@@ -47,6 +55,20 @@ public class HistorialPrecioJobService {
             total++;
         }
         alertaService.evaluarAlertasActivas();
+        ultimaEjecucion = ahora;
         log.info("Job historial completado: {} precios capturados", total);
+    }
+
+    /** Dispara el job manualmente bajo demanda, desde el panel admin. */
+    public void ejecutarAhora() {
+        capturarPrecios();
+    }
+
+    public LocalDateTime getUltimaEjecucion() {
+        return ultimaEjecucion;
+    }
+
+    public long getTasaCapturaMs() {
+        return tasaCapturaMs;
     }
 }

@@ -1,7 +1,9 @@
 package pe.edu.utp.pasajeya.app.service;
 
 import pe.edu.utp.pasajeya.app.dto.AdminDashboardDTO;
+import pe.edu.utp.pasajeya.app.dto.AdminPrecioRutaSemanaDTO;
 import pe.edu.utp.pasajeya.app.repository.AlertaRepository;
+import pe.edu.utp.pasajeya.app.repository.HistorialPrecioRepository;
 import pe.edu.utp.pasajeya.app.repository.PagoRepository;
 import pe.edu.utp.pasajeya.app.repository.SuscripcionRepository;
 import pe.edu.utp.pasajeya.app.repository.UsuarioRepository;
@@ -18,6 +20,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -27,6 +30,7 @@ class AdminDashboardServiceTest {
     @Mock private AlertaRepository alertaRepo;
     @Mock private SuscripcionRepository suscripcionRepo;
     @Mock private PagoRepository pagoRepo;
+    @Mock private HistorialPrecioRepository historialRepo;
 
     @InjectMocks
     private AdminDashboardServiceImpl dashboardService;
@@ -42,7 +46,15 @@ class AdminDashboardServiceTest {
         when(usuarioRepo.countByActivoTrue()).thenReturn(7L);
         when(usuarioRepo.count()).thenReturn(8L);
         when(pagoRepo.sumarIngresosTotales()).thenReturn(Optional.of(new BigDecimal("350.00")));
+        when(pagoRepo.sumarIngresosPorMes(any())).thenReturn(List.of(
+                new Object[]{"2026-06", new BigDecimal("200.00")},
+                new Object[]{"2026-07", new BigDecimal("150.00")}
+        ));
         when(alertaRepo.countByActivaTrue()).thenReturn(4L);
+        when(alertaRepo.contarActivasPorAerolinea()).thenReturn(List.of(
+                new Object[]{"LATAM", 3L},
+                new Object[]{"Sky", 1L}
+        ));
         when(suscripcionRepo.countByEstado("activa")).thenReturn(2L);
         when(suscripcionRepo.countByEstado("vencida")).thenReturn(1L);
         when(suscripcionRepo.countByEstado("cancelada")).thenReturn(3L);
@@ -59,6 +71,8 @@ class AdminDashboardServiceTest {
         assertThat(dto.suscripcionesActivas()).isEqualTo(2L);
         assertThat(dto.suscripcionesVencidas()).isEqualTo(1L);
         assertThat(dto.suscripcionesCanceladas()).isEqualTo(3L);
+        assertThat(dto.ingresosPorMes()).containsEntry("2026-06", new BigDecimal("200.00"));
+        assertThat(dto.alertasPorAerolinea()).containsEntry("LATAM", 3L);
     }
 
     @Test
@@ -68,11 +82,31 @@ class AdminDashboardServiceTest {
         when(usuarioRepo.countByActivoTrue()).thenReturn(0L);
         when(usuarioRepo.count()).thenReturn(0L);
         when(pagoRepo.sumarIngresosTotales()).thenReturn(Optional.empty());
+        when(pagoRepo.sumarIngresosPorMes(any())).thenReturn(List.of());
         when(alertaRepo.countByActivaTrue()).thenReturn(0L);
+        when(alertaRepo.contarActivasPorAerolinea()).thenReturn(List.of());
         when(suscripcionRepo.countByEstado(org.mockito.ArgumentMatchers.anyString())).thenReturn(0L);
 
         AdminDashboardDTO dto = dashboardService.obtenerMetricas();
 
         assertThat(dto.ingresosTotales()).isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
+    @Test
+    @DisplayName("obtenerPreciosPorRuta() filtra solo las rutas con mas volumen de historial")
+    void obtenerPreciosPorRuta_filtraTopRutas() {
+        when(historialRepo.contarPorRuta(any())).thenReturn(List.<Object[]>of(
+                new Object[]{"LIM", "CUZ", 500L}
+        ));
+        when(historialRepo.promedioSemanalPorRuta(any())).thenReturn(List.<Object[]>of(
+                new Object[]{"LIM", "CUZ", "2026-27", 199.5},
+                new Object[]{"LIM", "AQP", "2026-27", 150.0} // no esta en el top -> se descarta
+        ));
+
+        List<AdminPrecioRutaSemanaDTO> resultado = dashboardService.obtenerPreciosPorRuta();
+
+        assertThat(resultado).hasSize(1);
+        assertThat(resultado.get(0).ruta()).isEqualTo("LIM-CUZ");
+        assertThat(resultado.get(0).semana()).isEqualTo("2026-27");
     }
 }

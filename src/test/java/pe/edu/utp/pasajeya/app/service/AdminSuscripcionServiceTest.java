@@ -2,6 +2,7 @@ package pe.edu.utp.pasajeya.app.service;
 
 import pe.edu.utp.pasajeya.app.dto.AdminPagoDTO;
 import pe.edu.utp.pasajeya.app.dto.AdminSuscripcionDTO;
+import pe.edu.utp.pasajeya.app.dto.PaginaDTO;
 import pe.edu.utp.pasajeya.app.model.*;
 import pe.edu.utp.pasajeya.app.repository.PagoRepository;
 import pe.edu.utp.pasajeya.app.repository.SuscripcionRepository;
@@ -14,6 +15,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -22,6 +25,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -72,13 +77,14 @@ class AdminSuscripcionServiceTest {
         sub.setMetodoPago("tarjeta_credito");
         sub.setAutoRenovar(true);
 
-        when(suscripcionRepo.findAllByOrderByFechaInicioDesc()).thenReturn(List.of(sub));
+        var pageable = PageRequest.of(0, 10);
+        when(suscripcionRepo.buscarPaginado(isNull(), any())).thenReturn(new PageImpl<>(List.of(sub), pageable, 1));
         when(usuarioRepo.findByPersonaId(20)).thenReturn(Optional.of(usuario));
 
-        List<AdminSuscripcionDTO> resultado = adminSuscripcionService.listarSuscripciones();
+        PaginaDTO<AdminSuscripcionDTO> resultado = adminSuscripcionService.listarSuscripcionesPaginado(null, 0, 10);
 
-        assertThat(resultado).hasSize(1);
-        AdminSuscripcionDTO dto = resultado.get(0);
+        assertThat(resultado.contenido()).hasSize(1);
+        AdminSuscripcionDTO dto = resultado.contenido().get(0);
         assertThat(dto.emailUsuario()).isEqualTo("enrique.pdg@gmail.com");
         assertThat(dto.nombreUsuario()).isEqualTo("Enrique Prada");
         assertThat(dto.tipoPlan()).isEqualTo("mensual");
@@ -99,13 +105,14 @@ class AdminSuscripcionServiceTest {
         sub.setMetodoPago("yape");
         sub.setAutoRenovar(false);
 
-        when(suscripcionRepo.findAllByOrderByFechaInicioDesc()).thenReturn(List.of(sub));
+        var pageable = PageRequest.of(0, 10);
+        when(suscripcionRepo.buscarPaginado(isNull(), any())).thenReturn(new PageImpl<>(List.of(sub), pageable, 1));
         when(usuarioRepo.findByPersonaId(20)).thenReturn(Optional.empty());
 
-        List<AdminSuscripcionDTO> resultado = adminSuscripcionService.listarSuscripciones();
+        PaginaDTO<AdminSuscripcionDTO> resultado = adminSuscripcionService.listarSuscripcionesPaginado(null, 0, 10);
 
-        assertThat(resultado.get(0).emailUsuario()).isEqualTo("—");
-        assertThat(resultado.get(0).nombreUsuario()).isEqualTo("—");
+        assertThat(resultado.contenido().get(0).emailUsuario()).isEqualTo("—");
+        assertThat(resultado.contenido().get(0).nombreUsuario()).isEqualTo("—");
     }
 
     @Test
@@ -132,5 +139,18 @@ class AdminSuscripcionServiceTest {
         assertThat(dto.nombreUsuario()).isEqualTo("Enrique Prada");
         assertThat(dto.refInterna()).isEqualTo("123456");
         assertThat(dto.monto()).isEqualByComparingTo("19.00");
+    }
+
+    @Test
+    @DisplayName("listarSuscripcionesPaginado() con búsqueda pasa el texto normalizado al repositorio")
+    void listarSuscripcionesPaginado_conBusqueda_pasaTextoAlRepo() {
+        var pageable = PageRequest.of(0, 10);
+        when(suscripcionRepo.buscarPaginado(org.mockito.ArgumentMatchers.eq("enrique"), any()))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        adminSuscripcionService.listarSuscripcionesPaginado("enrique", 0, 10);
+
+        org.mockito.Mockito.verify(suscripcionRepo)
+                .buscarPaginado(org.mockito.ArgumentMatchers.eq("enrique"), any());
     }
 }
