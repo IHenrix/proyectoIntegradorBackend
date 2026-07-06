@@ -195,4 +195,105 @@ class AlertaControllerTest {
         mockMvc.perform(get("/api/alertas/reporte/excel"))
                 .andExpect(status().isOk());
     }
+
+    // ═══════════════════════════════════════════════════
+    // PRUEBA 7: GET /api/alertas/reporte/excel siendo admin → 400 (admin no es premium)
+    // ═══════════════════════════════════════════════════
+    @Test
+    @WithMockUser(username = "admin@test.com")
+    @DisplayName("GET /api/alertas/reporte/excel debe fallar si el usuario es admin (admin no hereda premium)")
+    void getReporteExcel_usuarioAdmin_debeFallar() throws Exception {
+        Rol rolAdmin = new Rol();
+        rolAdmin.setNombre("admin");
+        Usuario usuarioAdmin = new Usuario();
+        usuarioAdmin.setEmail("admin@test.com");
+        usuarioAdmin.setRol(rolAdmin);
+        when(usuarioRepo.findByEmail("admin@test.com")).thenReturn(Optional.of(usuarioAdmin));
+
+        mockMvc.perform(get("/api/alertas/reporte/excel"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("REQUIERE_PREMIUM"));
+    }
+
+    // ═══════════════════════════════════════════════════
+    // PRUEBAS 8-12: el admin no gestiona alertas propias (no es pasajero)
+    // ═══════════════════════════════════════════════════
+    private void mockearAdmin(String email) {
+        Rol rolAdmin = new Rol();
+        rolAdmin.setNombre("admin");
+        Usuario usuarioAdmin = new Usuario();
+        usuarioAdmin.setEmail(email);
+        usuarioAdmin.setRol(rolAdmin);
+        when(usuarioRepo.findByEmail(email)).thenReturn(Optional.of(usuarioAdmin));
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com")
+    @DisplayName("GET /api/alertas debe fallar si el usuario es admin")
+    void getAlertas_usuarioAdmin_debeFallar() throws Exception {
+        mockearAdmin("admin@test.com");
+
+        mockMvc.perform(get("/api/alertas"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("El administrador no gestiona alertas propias"));
+
+        verify(alertaService, never()).listar(anyString());
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com")
+    @DisplayName("POST /api/alertas debe fallar si el usuario es admin")
+    void postAlerta_usuarioAdmin_debeFallar() throws Exception {
+        mockearAdmin("admin@test.com");
+        CrearAlertaRequestDTO request = new CrearAlertaRequestDTO(
+                100L, null, null, null, null, 200.0, "987654321");
+
+        mockMvc.perform(post("/api/alertas")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("El administrador no gestiona alertas propias"));
+
+        verify(alertaService, never()).crear(anyString(), any());
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com")
+    @DisplayName("PATCH /api/alertas/1/pausar debe fallar si el usuario es admin")
+    void patchPausar_usuarioAdmin_debeFallar() throws Exception {
+        mockearAdmin("admin@test.com");
+
+        mockMvc.perform(patch("/api/alertas/1/pausar").with(csrf()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("El administrador no gestiona alertas propias"));
+
+        verify(alertaService, never()).pausar(anyString(), anyInt());
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com")
+    @DisplayName("PATCH /api/alertas/1/reactivar debe fallar si el usuario es admin")
+    void patchReactivar_usuarioAdmin_debeFallar() throws Exception {
+        mockearAdmin("admin@test.com");
+
+        mockMvc.perform(patch("/api/alertas/1/reactivar").with(csrf()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("El administrador no gestiona alertas propias"));
+
+        verify(alertaService, never()).reactivar(anyString(), anyInt());
+    }
+
+    @Test
+    @WithMockUser(username = "admin@test.com")
+    @DisplayName("DELETE /api/alertas/1 debe fallar si el usuario es admin")
+    void deleteAlerta_usuarioAdmin_debeFallar() throws Exception {
+        mockearAdmin("admin@test.com");
+
+        mockMvc.perform(delete("/api/alertas/1").with(csrf()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("El administrador no gestiona alertas propias"));
+
+        verify(alertaService, never()).eliminar(anyString(), anyInt());
+    }
 }

@@ -43,27 +43,32 @@ public class AlertaController {
 
     @GetMapping
     public ResponseEntity<List<AlertaDTO>> listar(Authentication auth) {
+        verificarNoAdmin(auth.getName());
         return ResponseEntity.ok(alertaService.listar(auth.getName()));
     }
 
     @PostMapping
     public ResponseEntity<AlertaDTO> crear(Authentication auth,
                                            @RequestBody @Valid CrearAlertaRequestDTO request) {
+        verificarNoAdmin(auth.getName());
         return ResponseEntity.ok(alertaService.crear(auth.getName(), request));
     }
 
     @PatchMapping("/{id}/pausar")
     public ResponseEntity<AlertaDTO> pausar(Authentication auth, @PathVariable Integer id) {
+        verificarNoAdmin(auth.getName());
         return ResponseEntity.ok(alertaService.pausar(auth.getName(), id));
     }
 
     @PatchMapping("/{id}/reactivar")
     public ResponseEntity<AlertaDTO> reactivar(Authentication auth, @PathVariable Integer id) {
+        verificarNoAdmin(auth.getName());
         return ResponseEntity.ok(alertaService.reactivar(auth.getName(), id));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(Authentication auth, @PathVariable Integer id) {
+        verificarNoAdmin(auth.getName());
         alertaService.eliminar(auth.getName(), id);
         return ResponseEntity.noContent().build();
     }
@@ -100,10 +105,18 @@ public class AlertaController {
         }
     }
 
+    private void verificarNoAdmin(String email) {
+        usuarioRepo.findByEmail(email).ifPresent(u -> {
+            if ("admin".equals(u.getRol().getNombre())) {
+                throw new RuntimeException("El administrador no gestiona alertas propias");
+            }
+        });
+    }
+
     private void verificarPremium(String email) {
         usuarioRepo.findByEmail(email).ifPresent(u -> {
             String rol = u.getRol().getNombre();
-            if (!"usuario_premium".equals(rol) && !"admin".equals(rol)) {
+            if (!"usuario_premium".equals(rol)) {
                 throw new RuntimeException("REQUIERE_PREMIUM");
             }
         });
