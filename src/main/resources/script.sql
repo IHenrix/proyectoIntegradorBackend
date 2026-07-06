@@ -268,7 +268,7 @@ INSERT INTO usuario (id_persona, id_rol, email, password_hash, proveedor, activo
   (1, 3, 'admin@pasajeya.com.pe',
    '$2b$10$T57RmaZUJZkaawlRVyL7puM0x9CfILDd0Iv4cRyisthg/I.Pc4eEW',
    'email', TRUE, TRUE),
-  (2, 1, 'enrique.pdg@gmail.com',
+  (2, 1, 'enrique.pdg@outlook.com',
    '$2b$10$T57RmaZUJZkaawlRVyL7puM0x9CfILDd0Iv4cRyisthg/I.Pc4eEW',
    'email', TRUE, TRUE),
   (3, 2, 'renrique_prada@hotmail.com',

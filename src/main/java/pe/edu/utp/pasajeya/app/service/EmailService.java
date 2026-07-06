@@ -1,22 +1,31 @@
 package pe.edu.utp.pasajeya.app.service;
 
-import jakarta.mail.internet.InternetAddress;
-import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
+
+import java.util.List;
+import java.util.Map;
 
 @Service
 public class EmailService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailService.class);
 
-    private final JavaMailSender mailSender;
+    private static final int TIMEOUT_MS = 10_000;
+    private static final String BREVO_URL = "https://api.brevo.com/v3/smtp/email";
+    private static final String REMITENTE = "PasajeYa";
 
-    @Value("${spring.mail.username}")
+    private final RestClient restClient;
+
+    @Value("${brevo.api-key}")
+    private String brevoApiKey;
+
+    @Value("${brevo.sender-email}")
     private String fromEmail;
 
     @Value("${app.base-url}")
@@ -25,28 +34,48 @@ public class EmailService {
     @Value("${app.frontend.url}")
     private String frontendUrl;
 
-    public EmailService(JavaMailSender mailSender) {
-        this.mailSender = mailSender;
+    @Autowired
+    public EmailService() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(TIMEOUT_MS);
+        factory.setReadTimeout(TIMEOUT_MS);
+        this.restClient = RestClient.builder().requestFactory(factory).build();
+    }
+
+    // Constructor solo para tests: permite inyectar un RestClient mockeado
+    // y no golpear la API real de Brevo durante mvn test.
+    EmailService(RestClient restClient) {
+        this.restClient = restClient;
     }
 
     public void enviarVerificacion(String destinatario, String token) {
+        String urlVerificacion = baseUrl + "/api/auth/verificar?token=" + token;
+
         try {
-            String urlVerificacion = baseUrl + "/api/auth/verificar?token=" + token;
-
-            MimeMessage mimeMessage = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
-
-            helper.setFrom(new InternetAddress(fromEmail, "PasajeYa"));
-            helper.setTo(destinatario);
-            helper.setSubject("PasajeYa — Verifica tu cuenta");
-            helper.setText(buildHtmlEmail(urlVerificacion), true);
-
-            mailSender.send(mimeMessage);
+            enviarHtml(destinatario, "PasajeYa — Verifica tu cuenta", buildHtmlEmail(urlVerificacion));
             log.info("Email de verificacion enviado a {}", destinatario);
         } catch (Exception e) {
             log.error("Error enviando email a {}: {}", destinatario, e.getMessage());
-            throw new RuntimeException("Error al enviar el correo de verificación");
+            throw new RuntimeException("Error al enviar el correo de verificación", e);
         }
+    }
+
+    private void enviarHtml(String destinatario, String asunto, String html) {
+        Map<String, Object> body = Map.of(
+                "sender", Map.of("name", REMITENTE, "email", fromEmail),
+                "to", List.of(Map.of("email", destinatario)),
+                "subject", asunto,
+                "htmlContent", html
+        );
+
+        restClient.post()
+                .uri(BREVO_URL)
+                .header("api-key", brevoApiKey)
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
+                .body(body)
+                .retrieve()
+                .body(String.class);
     }
 
     private String buildHtmlEmail(String urlVerificacion) {
