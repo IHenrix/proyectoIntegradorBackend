@@ -65,6 +65,7 @@ class AuthServiceTest {
 
         persona = new Persona();
         persona.setNombre("Ana");
+        persona.setTelefono("+51999888777");
 
         usuario = new Usuario();
         usuario.setId(1);
@@ -159,6 +160,7 @@ class AuthServiceTest {
         assertThat(resultado.token()).isEqualTo("jwt-token-generado");
         assertThat(resultado.nombre()).isEqualTo("Ana");
         assertThat(resultado.rol()).isEqualTo("usuario_free");
+        assertThat(resultado.telefono()).isEqualTo("+51999888777");
     }
 
     // ═══════════════════════════════════════════════════
