@@ -15,4 +15,4 @@ WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 
 EXPOSE 8080
-ENTRYPOINT ["sh", "-c", "java -Dspring.profiles.active=prod -Dserver.port=${PORT:-8080} -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "java -Xmx512m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC -Dspring.profiles.active=prod -Dserver.port=${PORT:-8080} -jar app.jar"]
