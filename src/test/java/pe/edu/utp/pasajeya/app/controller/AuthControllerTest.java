@@ -87,7 +87,7 @@ class AuthControllerTest {
     @DisplayName("POST /api/auth/login debe retornar 200 con el token cuando las credenciales son validas")
     void postLogin_debeRetornar200ConToken() throws Exception {
         LoginRequestDTO request = new LoginRequestDTO("ana@test.com", "password123", "captcha-token");
-        LoginResponseDTO response = new LoginResponseDTO("jwt-token", "Ana", "usuario_free");
+        LoginResponseDTO response = new LoginResponseDTO("jwt-token", "Ana", "usuario_free", "+51999888777");
         when(authService.login(any(LoginRequestDTO.class))).thenReturn(response);
 
         mockMvc.perform(post("/api/auth/login")
